@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>DrawRace Inspired — Prototype</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">DRAW RACE INSPIRED</div>
+        <h1>Track 01 · Alpine Hairpin</h1>
+      </div>
+      <div class="status" id="status">Rajzold meg a versenyívet</div>
+    </header>
+
+    <section class="stage-wrap">
+      <canvas id="game" aria-label="Versenypálya"></canvas>
+      <div class="hint" id="hint">
+        <strong>1.</strong> Húzd végig az ujjad / egered a pályán.<br>
+        <strong>2.</strong> A húzás sebessége meghatározza az autó tempóját.<br>
+        <strong>3.</strong> Nyomd meg a <b>VERSENY</b> gombot.
+      </div>
+    </section>
+
+    <section class="controls">
+      <button id="clearBtn" class="secondary">ÚJRARAJZOLÁS</button>
+      <button id="raceBtn" class="primary">VERSENY ▶</button>
+      <button id="turboBtn" class="turbo" disabled>TURBO</button>
+    </section>
+
+    <section class="telemetry">
+      <div><span>SEBESSÉG</span><b id="speed">0</b><small> km/h</small></div>
+      <div><span>TÁV</span><b id="distance">0</b><small> %</small></div>
+      <div><span>IDŐ</span><b id="time">0.00</b><small> s</small></div>
+      <div><span>ÍVPONTOK</span><b id="points">0</b></div>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
