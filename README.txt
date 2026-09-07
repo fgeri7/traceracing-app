@@ -1,23 +1,22 @@
-TRACE RACING — GAMEPLAY v4
+TRACE RACING — GAMEPLAY v5
 
-Replace these root files:
+Replace the five root files:
 index.html
 style.css
 game.js
 manifest.json
 sw.js
 
-Keep existing icons/, assets/ and brand/ folders.
+Keep icons/assets/brand unchanged.
 
-Major changes:
-- Much larger play area: controls moved to a right-hand sidebar.
-- Track fills the available height.
-- Clear circuit direction with continuous asphalt, shoulders, proper alternating kerbs,
-  START/CÉL gates and direction arrows.
-- Removed the instruction card from the track surface.
-- Drawing starts at START and must finish at CÉL.
-- Race animation uses continuous interpolation rather than an integer-only index,
-  fixing the previous "car appears but does not move" behaviour.
-- Long-press text selection/callout is disabled.
-- Overscroll / pull-to-refresh is disabled.
-- Landscape is enforced as the game orientation.
+v5 goals:
+- Robust right-hand control panel using explicit flex layout.
+- Track uses almost all remaining screen space.
+- One coherent, readable circuit instead of a confusing overlapping ribbon.
+- No floating red/white squares: kerbs are attached to the road edges.
+- Direction arrows are placed on the asphalt.
+- START and CÉL are clear.
+- Drawing and race route remain a line.
+- Race car uses continuous progress interpolation.
+- Global text selection, long-press callout, context menu and overscroll/pull-to-refresh suppression remain enabled.
+- Landscape orientation remains enforced.
