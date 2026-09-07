@@ -1,73 +1,38 @@
 *{box-sizing:border-box}
-html,body{
-  margin:0;width:100%;height:100%;
-  background:#0b0e12;color:#f7f7f7;
-  overscroll-behavior:none;
-  -webkit-user-select:none;user-select:none;
-  -webkit-touch-callout:none;
-}
-body{
-  overflow:hidden;
-  touch-action:none;
-  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-}
-button,canvas{ -webkit-user-select:none;user-select:none; -webkit-touch-callout:none; }
-.game-shell{
-  width:100%;height:100dvh;max-width:1600px;margin:0 auto;
-  padding:clamp(7px,1vw,15px);
-  display:grid;
-  grid-template-rows:auto minmax(0,1fr) auto auto;
-  gap:clamp(6px,1vw,11px);
-}
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:18px;padding:0 2px;
-}
-.eyebrow{font-size:10px;font-weight:900;letter-spacing:.2em;opacity:.55}
-h1{font-size:clamp(17px,2vw,29px);line-height:1.05;margin:3px 0 0}
-.status{
-  font-size:clamp(11px,1.2vw,16px);
-  font-weight:850;text-align:right;max-width:330px;
-}
-.stage-wrap{
-  position:relative;min-height:0;width:100%;
-  overflow:hidden;border-radius:18px;
-  background:#55714a;box-shadow:0 15px 50px #0009;
-  border:1px solid #ffffff0c;
-}
-canvas{display:block;width:100%;height:100%;cursor:crosshair}
-.controls{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:9px}
-button{
-  border:0;border-radius:12px;min-height:44px;
-  color:#fff;font-weight:950;letter-spacing:.05em;
-  cursor:pointer;font-size:clamp(11px,1vw,15px);
-  -webkit-tap-highlight-color:transparent;
-}
-button:disabled{opacity:.32;cursor:not-allowed}
+html,body{margin:0;width:100%;height:100%;background:#090c10;color:#f7f7f7;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden;overscroll-behavior:none}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+button,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.app{height:100dvh;width:100%;padding:8px 10px 9px;display:grid;grid-template-rows:auto minmax(0,1fr);gap:7px}
+.topbar{display:flex;justify-content:space-between;align-items:center;min-height:42px;padding:0 3px}
+.eyebrow{font-size:9px;font-weight:950;letter-spacing:.22em;opacity:.55}
+h1{margin:2px 0 0;font-size:clamp(17px,2vw,28px);line-height:1}
+.status{font-size:clamp(11px,1.15vw,16px);font-weight:900;text-align:right}
+.play-layout{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,19vw,280px);gap:9px}
+.track-panel{position:relative;min-width:0;min-height:0;overflow:hidden;border-radius:17px;background:#536f4b;border:1px solid #ffffff12;box-shadow:0 15px 55px #000a}
+canvas{width:100%;height:100%;display:block}
+.draw-tip{position:absolute;left:16px;bottom:14px;max-width:360px;padding:10px 13px;border-radius:10px;background:#080c0ddd;backdrop-filter:blur(8px);font-size:11px;line-height:1.35;pointer-events:none}
+.draw-tip b{display:block;letter-spacing:.1em;font-size:10px;margin-bottom:2px}
+.draw-tip span{opacity:.78}
+.side-panel{min-height:0;background:#12161b;border:1px solid #ffffff0b;border-radius:15px;padding:11px;display:flex;flex-direction:column;gap:8px}
+.side-title{font-size:10px;font-weight:950;letter-spacing:.18em;opacity:.5;padding:2px 2px 1px}
+button{width:100%;border:0;border-radius:11px;min-height:43px;color:#fff;font-weight:950;letter-spacing:.05em;font-size:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:disabled{opacity:.3;cursor:not-allowed}
 .primary{background:#e10600;box-shadow:0 7px 22px #e1060040}
-.secondary{background:#252a30}
-.turbo{background:#b56a12}
-.telemetry{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.telemetry>div{background:#15191e;border-radius:10px;padding:7px 11px}
-.telemetry span{display:block;font-size:8px;font-weight:900;letter-spacing:.14em;opacity:.45}
-.telemetry b{font-size:clamp(17px,1.8vw,25px)}
-.telemetry small{font-size:9px;opacity:.45}
-#rotateOverlay{
-  display:none;position:fixed;inset:0;z-index:100;
-  background:#0b0e12;align-items:center;justify-content:center;
-  flex-direction:column;text-align:center;gap:9px;padding:30px;
-}
-.rotate-icon{font-size:56px}
-#rotateOverlay strong{font-size:23px}
-#rotateOverlay span{opacity:.65}
-@media (orientation:portrait){#rotateOverlay{display:flex}}
-@media (orientation:landscape) and (max-height:520px){
-  .game-shell{padding:5px 8px;gap:5px}
-  .eyebrow{font-size:8px}
-  h1{font-size:16px}
-  .status{font-size:10px}
-  button{min-height:37px}
-  .telemetry>div{padding:4px 8px}
-  .telemetry span{font-size:7px}
-  .telemetry b{font-size:16px}
+.turbo{background:#b66c12}
+.secondary{background:#292e34}
+.telemetry{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px}
+.telemetry>div{background:#1a1f25;border-radius:9px;padding:8px 9px}
+.telemetry span{display:block;font-size:7px;font-weight:950;letter-spacing:.13em;opacity:.45}
+.telemetry strong{display:block;line-height:1.05;margin-top:3px}
+.telemetry b{font-size:21px}
+.telemetry small{font-size:8px;opacity:.5}
+.legend{margin-top:auto;border-top:1px solid #fff1;padding-top:10px;display:grid;gap:7px;font-size:9px;font-weight:850;letter-spacing:.04em;opacity:.7}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.legend .green{background:#2bd66f}.legend .white{background:#fff}.legend .yellow{background:#ffe45b}
+#rotateOverlay{display:none;position:fixed;inset:0;z-index:100;background:#090c10;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:8px;padding:25px}
+.rotate-icon{font-size:54px}#rotateOverlay strong{font-size:23px}#rotateOverlay span{opacity:.6}
+@media(orientation:portrait){#rotateOverlay{display:flex}}
+@media(orientation:landscape) and (max-height:520px){
+.app{padding:5px 7px;gap:5px}.topbar{min-height:34px}.eyebrow{font-size:7px}h1{font-size:15px}.status{font-size:9px}
+.side-panel{padding:8px;gap:5px}.side-title{font-size:8px}button{min-height:34px;font-size:10px}.telemetry{gap:5px}.telemetry>div{padding:6px}.telemetry b{font-size:17px}.draw-tip{display:none}
 }

@@ -1,59 +1,63 @@
 <!doctype html>
 <html lang="hu">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <title>Trace Racing</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <meta name="theme-color" content="#0b0e12">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Trace Racing</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#090c10">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
-  <div id="rotateOverlay">
-    <div class="rotate-icon">↻</div>
-    <strong>Fordítsd el a telefont</strong>
-    <span>A Trace Racing fekvő módban játszható.</span>
-  </div>
+<div id="rotateOverlay"><div class="rotate-icon">↻</div><strong>Fordítsd el a telefont</strong><span>A Trace Racing fekvő módban játszható.</span></div>
 
-  <main class="game-shell">
-    <header class="topbar">
-      <div>
-        <div class="eyebrow">TRACE RACING</div>
-        <h1>Track 01 · Alpine Hairpin</h1>
+<main class="app">
+  <header class="topbar">
+    <div><div class="eyebrow">TRACE RACING</div><h1>Track 01 · Alpine Hairpin</h1></div>
+    <div class="status" id="status">Rajzold meg az ideális versenyívet</div>
+  </header>
+
+  <div class="play-layout">
+    <section class="track-panel" id="stage">
+      <canvas id="game" aria-label="Trace Racing pálya"></canvas>
+      <div class="draw-tip" id="drawTip">
+        <b>RAJZOLD MEG A VERSENYÍVET</b>
+        <span>Indulj a START-tól, és vezesd a vonalat a kockás CÉL-ig.</span>
       </div>
-      <div class="status" id="status">A zöld START mezőből indulj</div>
-    </header>
-
-    <section class="stage-wrap" id="stage">
-      <canvas id="game" aria-label="Trace Racing versenypálya"></canvas>
     </section>
 
-    <section class="controls">
-      <button id="clearBtn" class="secondary">ÚJRARAJZOLÁS</button>
+    <aside class="side-panel">
+      <div class="side-title">RACE CONTROL</div>
       <button id="raceBtn" class="primary" disabled>VERSENY ▶</button>
       <button id="turboBtn" class="turbo" disabled>TURBO</button>
-    </section>
+      <button id="clearBtn" class="secondary">ÚJRARAJZOLÁS</button>
 
-    <section class="telemetry">
-      <div><span>SEBESSÉG</span><b id="speed">0</b><small> km/h</small></div>
-      <div><span>TÁV</span><b id="distance">0</b><small> %</small></div>
-      <div><span>IDŐ</span><b id="time">0.00</b><small> s</small></div>
-      <div><span>ÍVPONTOK</span><b id="points">0</b></div>
-    </section>
-  </main>
+      <div class="telemetry">
+        <div><span>SEBESSÉG</span><strong><b id="speed">0</b><small> km/h</small></strong></div>
+        <div><span>TÁV</span><strong><b id="distance">0</b><small> %</small></strong></div>
+        <div><span>IDŐ</span><strong><b id="time">0.00</b><small> s</small></strong></div>
+        <div><span>ÍVPONTOK</span><strong><b id="points">0</b></strong></div>
+      </div>
 
-  <script src="game.js"></script>
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(console.error);
-      });
-    }
-  </script>
+      <div class="legend">
+        <div><i class="green"></i> START</div>
+        <div><i class="white"></i> CÉL</div>
+        <div><i class="yellow"></i> TE VERSENYÍVED</div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script src="game.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.error));
+}
+</script>
 </body>
 </html>
