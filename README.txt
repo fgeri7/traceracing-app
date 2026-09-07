@@ -1,28 +1,23 @@
-TRACE RACING — REFERENCE-FAITHFUL ASSET PACK
-==============================================
+TRACE RACING — GAMEPLAY PROTOTYPE v2
 
-These files are extracted directly from the user-supplied Trace Racing
-asset sheet. No new logo design has been invented.
+Replaces the broken proof-of-concept gameplay.
 
-BRAND:
-- logo-master.png / .svg
-- logo-transparent.png
-- logo-light.png / .svg
-- logo-compact.png / .svg
-- icon-mark.png / .svg
-- favicon.png
+Changes:
+- Landscape-first game layout.
+- Portrait devices show a rotate-phone prompt.
+- No instruction panel over the track while drawing/racing.
+- Real asphalt track with shoulders, curbs, start and finish.
+- Drawing must begin at START and end at FINISH.
+- The drawn line is rendered as a racing line, not a filled red blob.
+- Race mode animates a car continuously along the drawn route.
+- Finish is triggered only after the car reaches the end of the route.
+- Service-worker cache version bumped to v2.
 
-PWA ICONS:
-- icon-48.png
-- icon-72.png
-- icon-96.png
-- icon-144.png
-- icon-192.png
-- icon-256.png
-- icon-512.png
-- maskable-512.png
+Replace:
+index.html
+style.css
+game.js
+manifest.json
+sw.js
 
-IMPORTANT:
-The PWA/app icons intentionally contain the yellow sports car, track,
-smoke and red racing line shown in the reference sheet.
-The main logo itself does NOT contain the car.
+Do not replace the existing icons/assets with files from this ZIP.

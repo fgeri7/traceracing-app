@@ -2,22 +2,27 @@
 <html lang="hu">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <title>Trace Racing</title>
 
   <link rel="stylesheet" href="style.css">
-
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
-  <meta name="theme-color" content="#E10600">
+  <meta name="theme-color" content="#0b0e12">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 
 <body>
+  <div id="rotateOverlay">
+    <div class="rotate-icon">↻</div>
+    <strong>Fordítsd el a telefont</strong>
+    <span>A Trace Racing fekvő módban játszható.</span>
+  </div>
+
   <main class="game-shell">
     <header class="topbar">
       <div>
@@ -27,18 +32,18 @@
       <div class="status" id="status">Rajzold meg a versenyívet</div>
     </header>
 
-    <section class="stage-wrap">
-      <canvas id="game" aria-label="Versenypálya"></canvas>
-      <div class="hint" id="hint">
-        <strong>1.</strong> Húzd végig az ujjad / egered a pályán.<br>
-        <strong>2.</strong> A húzás sebessége meghatározza az autó tempóját.<br>
-        <strong>3.</strong> Nyomd meg a <b>VERSENY</b> gombot.
+    <section class="stage-wrap" id="stage">
+      <canvas id="game" aria-label="Trace Racing versenypálya"></canvas>
+
+      <div class="start-help" id="startHelp">
+        <div class="help-title">RAJZOLD MEG AZ ÍVET</div>
+        <div>Indíts a zöld START mezőből, és vezesd a vonalat a kockás CÉLIG.</div>
       </div>
     </section>
 
     <section class="controls">
       <button id="clearBtn" class="secondary">ÚJRARAJZOLÁS</button>
-      <button id="raceBtn" class="primary">VERSENY ▶</button>
+      <button id="raceBtn" class="primary" disabled>VERSENY ▶</button>
       <button id="turboBtn" class="turbo" disabled>TURBO</button>
     </section>
 
@@ -55,7 +60,6 @@
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js")
-          .then(() => console.log("Trace Racing service worker registered"))
           .catch(error => console.error("Service worker registration failed:", error));
       });
     }
