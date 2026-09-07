@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<rect width="512" height="512" fill="#0B0B0B"/>
+<g transform="translate(51.2 51.2) scale(.8)">
+
+<title id="title">Trace Racing icon mark</title>
+<desc id="desc">Checkered flag and red racing line icon.</desc>
+<rect width="512" height="512" rx="72" fill="#0B0B0B"/>
+<g transform="translate(55,55) scale(.68)">
+
+<g id="checkered-flag">
+  <rect x="52" y="120" width="34" height="34" fill="#fff"/>
+  <rect x="86" y="120" width="34" height="34" fill="#0b0b0b"/>
+  <rect x="120" y="120" width="34" height="34" fill="#fff"/>
+  <rect x="52" y="154" width="34" height="34" fill="#0b0b0b"/>
+  <rect x="86" y="154" width="34" height="34" fill="#fff"/>
+  <rect x="120" y="154" width="34" height="34" fill="#0b0b0b"/>
+  <rect x="52" y="188" width="34" height="34" fill="#fff"/>
+  <rect x="86" y="188" width="34" height="34" fill="#0b0b0b"/>
+  <rect x="120" y="188" width="34" height="34" fill="#fff"/>
+</g>
+
+<path d="M72 294 C260 252 505 268 774 296 C926 312 1064 302 1140 250 C1074 338 928 374 742 366 C498 356 282 326 72 350 C122 332 150 313 72 294 Z" fill="#E10600"/>
+</g>
+
+</g>
+</svg>
