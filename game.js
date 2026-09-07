@@ -18,25 +18,34 @@ let progress=0,startTime=0,lastTime=0,turboUntil=0;
 let car={x:0,y:0,a:0};
 
 function P(x,y){return{x,y}}
+let lastW=0,lastH=0;
 function resize(){
   const r=stage.getBoundingClientRect();
-  W=Math.max(1,r.width);H=Math.max(1,r.height);
+  const nw=Math.max(1,Math.round(r.width));
+  const nh=Math.max(1,Math.round(r.height));
+  if(nw===lastW && nh===lastH) return;
+  lastW=nw;lastH=nh;W=nw;H=nh;
   dpr=Math.min(devicePixelRatio||1,2);
   canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
-  canvas.style.width=W+"px";canvas.style.height=H+"px";
+  canvas.style.width="100%";canvas.style.height="100%";
   ctx.setTransform(dpr,0,0,dpr,0,0);
   buildTrack();draw();
 }
+const ro=new ResizeObserver(()=>resize());
+ro.observe(stage);
 
 /* A deliberately simple, readable Alpine circuit:
    start/finish -> uphill sweep -> fast right -> tight hairpin ->
    long back straight -> S section -> final hairpin -> finish. */
 const shape=[
- [.10,.78],[.09,.61],[.13,.43],[.25,.30],[.42,.25],[.60,.27],
- [.77,.22],[.89,.30],[.93,.44],[.91,.56],[.84,.63],
- [.70,.65],[.57,.60],[.48,.51],[.43,.42],[.36,.39],
- [.28,.44],[.25,.53],[.29,.61],[.40,.65],[.54,.68],
- [.68,.73],[.77,.82],[.68,.89],[.51,.90],[.34,.86],[.21,.83],[.10,.78]
+ [.08,.76],[.07,.57],[.12,.38],[.25,.20],[.43,.13],[.63,.16],
+ [.80,.10],[.91,.21],[.95,.39],[.94,.56],[.86,.69],
+ [.72,.77],[.57,.73],[.47,.63],[.41,.51],[.34,.45],
+ [.24,.49],[.19,.60],[.23,.72],[.37,.79],[.54,.82],
+ [.70,.87],[.84,.91],[.92,.82],[.91,.70],[.84,.61],
+ [.73,.54],[.62,.49],[.52,.43],[.45,.35],[.37,.28],
+ [.26,.29],[.18,.39],[.14,.52],[.15,.67],[.22,.78],
+ [.38,.88],[.58,.93],[.77,.88],[.90,.76]
 ];
 
 function catmull(ps,steps=10){
@@ -231,3 +240,4 @@ turboBtn.addEventListener("pointerdown",()=>{if(racing)turboUntil=performance.no
 raceBtn.addEventListener("click",startRace);
 clearBtn.addEventListener("click",reset);
 resize();
+window.addEventListener('load',resize);
