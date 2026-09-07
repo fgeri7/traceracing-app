@@ -1,23 +1,24 @@
-TRACE RACING — GAMEPLAY PROTOTYPE v2
+TRACE RACING — GAMEPLAY v3
 
-Replaces the broken proof-of-concept gameplay.
+Main fixes:
+- Landscape-first layout with much better use of the available screen.
+- Portrait devices show a rotate prompt.
+- The instruction overlay has been removed from the track.
+- The track is drawn as a clearly visible asphalt circuit with shoulders, kerbs, START and CÉL.
+- The player's route remains a line; it is never filled as a red polygon.
+- Drawing must start at START and finish near CÉL.
+- The car moves continuously along the drawn route.
+- Finish only occurs at the end of the route.
+- Long-press text selection / callout UI is suppressed with user-select and touch-callout CSS.
+- Pull-to-refresh / overscroll is suppressed with overscroll-behavior.
+- Context menu is suppressed on the game canvas.
+- Service-worker cache bumped to v3.
 
-Changes:
-- Landscape-first game layout.
-- Portrait devices show a rotate-phone prompt.
-- No instruction panel over the track while drawing/racing.
-- Real asphalt track with shoulders, curbs, start and finish.
-- Drawing must begin at START and end at FINISH.
-- The drawn line is rendered as a racing line, not a filled red blob.
-- Race mode animates a car continuously along the drawn route.
-- Finish is triggered only after the car reaches the end of the route.
-- Service-worker cache version bumped to v2.
-
-Replace:
+Replace these five root files:
 index.html
 style.css
 game.js
 manifest.json
 sw.js
 
-Do not replace the existing icons/assets with files from this ZIP.
+Keep the existing icons/assets folders.
