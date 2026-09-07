@@ -1,4 +1,4 @@
-const CACHE_NAME="trace-racing-v6";
+const CACHE_NAME="trace-racing-v7";
 const SHELL=["./","./index.html","./style.css","./game.js","./manifest.json",
 "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
 "./icons/favicon.png","./icons/apple-touch-icon.png"];

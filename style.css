@@ -15,14 +15,14 @@ h1{margin:2px 0 0;font-size:clamp(18px,2vw,28px);line-height:1}
 .btn{width:100%;min-height:46px;border:0;border-radius:11px;color:#fff;font-size:12px;font-weight:950;letter-spacing:.06em;cursor:pointer}
 .btn:disabled{opacity:.3;cursor:not-allowed}
 .race{background:#e10600;box-shadow:0 7px 22px #e1060038}
-.turbo{background:#b66c12}
+.turbo{background:#b66c12;display:flex;align-items:center;justify-content:center;gap:9px}.turbo span{font-size:10px;opacity:.75}
 .clear{background:#292e34}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:3px}
 .stats>div{background:#1b2026;border-radius:9px;padding:8px 9px}
 .stats span{display:block;font-size:7px;font-weight:950;letter-spacing:.14em;opacity:.45}
 .stats b{font-size:21px;line-height:1.1}
 .stats small{font-size:8px;opacity:.5}
-.help{margin-top:auto;padding-top:9px;border-top:1px solid #fff1;display:grid;gap:7px;font-size:9px;font-weight:850;opacity:.7}
+.turbo-meter{height:5px;border-radius:99px;background:#252a2f;overflow:hidden;margin:1px 2px 0}.turbo-meter-fill{height:100%;width:100%;background:#e7a31a;border-radius:inherit;transition:width .08s linear}.help{margin-top:auto;padding-top:9px;border-top:1px solid #fff1;display:grid;gap:7px;font-size:9px;font-weight:850;opacity:.7}
 .help i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
 .help .start{background:#21d66b}.help .finish{background:#fff}.help .route{background:#ffe35a}
 .draw-tip{position:absolute;left:15px;bottom:14px;padding:9px 12px;border-radius:9px;background:#080c0ddd;backdrop-filter:blur(8px);font-size:11px;line-height:1.25;pointer-events:none}

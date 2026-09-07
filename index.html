@@ -31,7 +31,7 @@
   <aside class="control-panel">
     <div class="panel-title">RACE CONTROL</div>
     <button id="raceBtn" class="btn race" disabled>VERSENY ▶</button>
-    <button id="turboBtn" class="btn turbo" disabled>TURBO</button>
+    <button id="turboBtn" class="btn turbo" disabled>TURBO <span id="turboLabel">100%</span></button>
     <button id="clearBtn" class="btn clear">ÚJRARAJZOLÁS</button>
 
     <div class="stats">
@@ -41,7 +41,7 @@
       <div><span>ÍVPONTOK</span><b id="points">0</b></div>
     </div>
 
-    <div class="help">
+    <div class="turbo-meter"><div class="turbo-meter-fill" id="turboFill"></div></div><div class="help">
       <div><i class="start"></i> START</div>
       <div><i class="finish"></i> CÉL</div>
       <div><i class="route"></i> saját versenyív</div>

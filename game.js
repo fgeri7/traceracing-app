@@ -1,153 +1,124 @@
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 const stage=document.getElementById("stage");
-const statusEl=document.getElementById("status");
-const tip=document.getElementById("drawTip");
-const raceBtn=document.getElementById("raceBtn");
-const turboBtn=document.getElementById("turboBtn");
-const clearBtn=document.getElementById("clearBtn");
-const speedEl=document.getElementById("speed");
-const distanceEl=document.getElementById("distance");
-const timeEl=document.getElementById("time");
-const pointsEl=document.getElementById("points");
+const statusEl=document.getElementById("status"),tip=document.getElementById("drawTip");
+const raceBtn=document.getElementById("raceBtn"),turboBtn=document.getElementById("turboBtn"),clearBtn=document.getElementById("clearBtn");
+const speedEl=document.getElementById("speed"),distanceEl=document.getElementById("distance"),timeEl=document.getElementById("time"),pointsEl=document.getElementById("points");
+const turboFill=document.getElementById("turboFill"),turboLabel=document.getElementById("turboLabel");
 
-let W=1,H=1,dpr=1,track=[];
-let path=[],race=[];
-let drawing=false,racing=false,finished=false;
-let progress=0,startTime=0,lastTime=0,turboUntil=0;
-let car={x:0,y:0,a:0};
+let W=1,H=1,dpr=1,lastW=0,lastH=0;
+let track=[],path=[],race=[];
+let drawing=false,racing=false,finished=false,progress=0,startTime=0,lastTime=0;
+let turbo=100,turboHeld=false;
+let car={x:0,y:0,a:0,slip:0};
+let drawSamples=[],lastDrawPoint=null,lastDrawTime=0;
 
 function P(x,y){return{x,y}}
-let lastW=0,lastH=0;
 function resize(){
-  const r=stage.getBoundingClientRect();
-  const nw=Math.max(1,Math.round(r.width));
-  const nh=Math.max(1,Math.round(r.height));
-  if(nw===lastW && nh===lastH) return;
-  lastW=nw;lastH=nh;W=nw;H=nh;
-  dpr=Math.min(devicePixelRatio||1,2);
-  canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
-  canvas.style.width="100%";canvas.style.height="100%";
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  buildTrack();draw();
+ const r=stage.getBoundingClientRect(),nw=Math.max(1,Math.round(r.width)),nh=Math.max(1,Math.round(r.height));
+ if(nw===lastW&&nh===lastH)return;
+ lastW=nw;lastH=nh;W=nw;H=nh;dpr=Math.min(devicePixelRatio||1,2);
+ canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
+ canvas.style.width="100%";canvas.style.height="100%";ctx.setTransform(dpr,0,0,dpr,0,0);
+ buildTrack();draw();
 }
-const ro=new ResizeObserver(()=>resize());
-ro.observe(stage);
+const ro=new ResizeObserver(()=>resize());ro.observe(stage);
 
-/* A deliberately simple, readable Alpine circuit:
-   start/finish -> uphill sweep -> fast right -> tight hairpin ->
-   long back straight -> S section -> final hairpin -> finish. */
+/*
+  Single, non-crossing circuit inspired by compact real race circuits:
+  long start/finish straight at the bottom, left hairpin, uphill sweep,
+  top esses, right hairpin, flowing middle sector, then back to the straight.
+  Coordinates intentionally fill the whole play area.
+*/
 const shape=[
- [.08,.76],[.07,.57],[.12,.38],[.25,.20],[.43,.13],[.63,.16],
- [.80,.10],[.91,.21],[.95,.39],[.94,.56],[.86,.69],
- [.72,.77],[.57,.73],[.47,.63],[.41,.51],[.34,.45],
- [.24,.49],[.19,.60],[.23,.72],[.37,.79],[.54,.82],
- [.70,.87],[.84,.91],[.92,.82],[.91,.70],[.84,.61],
- [.73,.54],[.62,.49],[.52,.43],[.45,.35],[.37,.28],
- [.26,.29],[.18,.39],[.14,.52],[.15,.67],[.22,.78],
- [.38,.88],[.58,.93],[.77,.88],[.90,.76]
+ [.10,.82],[.10,.67],[.11,.51],[.08,.37],[.13,.24],[.25,.16],[.40,.13],
+ [.56,.14],[.72,.11],[.86,.16],[.93,.28],[.91,.40],[.85,.47],[.75,.47],
+ [.67,.41],[.59,.35],[.52,.39],[.48,.48],[.50,.57],[.58,.63],[.68,.65],
+ [.76,.60],[.81,.52],[.88,.53],[.94,.61],[.95,.72],[.90,.81],[.78,.87],
+ [.62,.90],[.46,.88],[.32,.86],[.21,.84],[.10,.82]
 ];
 
-function catmull(ps,steps=10){
+function catmull(ps,steps=9){
  const out=[];
  for(let i=0;i<ps.length-1;i++){
   const p0=ps[Math.max(0,i-1)],p1=ps[i],p2=ps[i+1],p3=ps[Math.min(ps.length-1,i+2)];
   for(let j=0;j<steps;j++){
    const t=j/steps,t2=t*t,t3=t2*t;
    const x=.5*(2*p1[0]+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3);
-   const y=.5*(2*p1[1]+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p0[1]-3*p2[1]+p3[1])*0);
-   /* replace y with the proper Catmull-Rom expression */
-   const yy=.5*(2*p1[1]+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3);
-   out.push(P(x*W,yy*H));
+   const y=.5*(2*p1[1]+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3);
+   out.push(P(x*W,y*H));
   }
  }
- const q=ps[ps.length-1];out.push(P(q[0]*W,q[1]*H));return out;
+ out.push(P(ps.at(-1)[0]*W,ps.at(-1)[1]*H));return out;
 }
-function buildTrack(){track=catmull(shape,10)}
-
+function buildTrack(){track=catmull(shape,9)}
 function line(points,color,width,dash=[]){
  if(points.length<2)return;
  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap="round";ctx.lineJoin="round";ctx.setLineDash(dash);
  ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.restore();
 }
 function tangent(i){
- const a=track[Math.max(0,i-2)],b=track[Math.min(track.length-1,i+2)];
+ const a=track[Math.max(0,i-3)],b=track[Math.min(track.length-1,i+3)];
  return Math.atan2(b.y-a.y,b.x-a.x);
 }
 function sidePoint(i,side){
  const a=tangent(i),d=W*.073,p=track[i];
  return P(p.x-Math.sin(a)*d*side,p.y+Math.cos(a)*d*side);
 }
-
 function terrain(){
- ctx.fillStyle="#5e7a53";ctx.fillRect(0,0,W,H);
- // restrained landscape texture, deliberately outside the racing surface
- for(let i=0;i<46;i++){
+ ctx.fillStyle="#607b55";ctx.fillRect(0,0,W,H);
+ // Simple restrained landscaping; all detail stays outside the road.
+ for(let i=0;i<34;i++){
   const x=(i*233+47)%W,y=(i*137+31)%H;
-  ctx.fillStyle=i%2?"#6b855e":"#526e4a";
-  ctx.beginPath();ctx.ellipse(x,y,20+(i%4)*12,12+(i%3)*8,(i%5)*.3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=i%2?"#6b855e":"#536f4a";
+  ctx.beginPath();ctx.ellipse(x,y,22+(i%4)*12,13+(i%3)*8,(i%5)*.3,0,Math.PI*2);ctx.fill();
  }
- ctx.fillStyle="#405a42";
- ctx.beginPath();ctx.moveTo(0,H*.23);ctx.lineTo(W*.13,H*.05);ctx.lineTo(W*.27,H*.20);
- ctx.lineTo(W*.40,H*.07);ctx.lineTo(W*.54,H*.19);ctx.lineTo(W*.69,H*.04);
- ctx.lineTo(W*.83,H*.18);ctx.lineTo(W,H*.07);ctx.lineTo(W,0);ctx.lineTo(0,0);ctx.closePath();ctx.fill();
 }
 function tree(x,y,s){
- ctx.save();ctx.translate(x,y);ctx.scale(s,s);
- ctx.fillStyle="#263b28";ctx.fillRect(-3,7,6,14);
+ ctx.save();ctx.translate(x,y);ctx.scale(s,s);ctx.fillStyle="#293e2b";ctx.fillRect(-3,7,6,14);
  for(let i=0;i<3;i++){ctx.fillStyle=i?"#315335":"#203d28";ctx.beginPath();ctx.moveTo(0,-24+i*10);ctx.lineTo(-13+i*2,8+i*4);ctx.lineTo(13-i*2,8+i*4);ctx.closePath();ctx.fill()}
  ctx.restore();
 }
 function drawTrees(){
- for(let i=0;i<23;i++){const x=(i*251+70)%W,y=(i*157+48)%H;tree(x,y,.72+(i%3)*.12)}
+ for(let i=0;i<18;i++){const x=(i*271+75)%W,y=(i*173+45)%H;tree(x,y,.75+(i%3)*.12)}
 }
-
 function drawKerbs(){
- // Continuous short kerb blocks following the road edges. No floating squares.
- for(let i=5;i<track.length-4;i+=4){
-   const len=Math.max(9,W*.012),gap=2;
-   for(const side of [-1,1]){
-     const p=sidePoint(i,side),a=tangent(i);
-     ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);
-     ctx.fillStyle=(Math.floor(i/4)%2===0)?"#e10600":"#f4f4ef";
-     ctx.fillRect(-len/2,-4,len,8);ctx.restore();
-   }
+ // Kerbs are short blocks centered exactly on the road boundary.
+ for(let i=4;i<track.length-4;i+=4){
+  for(const side of [-1,1]){
+   const p=sidePoint(i,side),a=tangent(i),len=Math.max(8,W*.011);
+   ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);
+   ctx.fillStyle=(Math.floor(i/4)%2===0)?"#e10600":"#f5f5ef";
+   ctx.fillRect(-len/2,-4,len,8);ctx.restore();
+  }
  }
 }
 function gate(i,finish){
- const p=track[i],a=tangent(i),half=Math.max(28,W*.045);
+ const p=track[i],a=tangent(i),half=Math.max(28,W*.043);
  ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a+Math.PI/2);
  if(finish){
-   const s=6;for(let r=-3;r<4;r++)for(let c=-7;c<8;c++){ctx.fillStyle=(r+c)&1?"#111":"#fff";ctx.fillRect(c*s,r*s,s,s)}
+  const s=6;for(let r=-3;r<4;r++)for(let c=-7;c<8;c++){ctx.fillStyle=(r+c)&1?"#111":"#fff";ctx.fillRect(c*s,r*s,s,s)}
  }else{
-   ctx.fillStyle="#20dc6b";ctx.globalAlpha=.2;ctx.fillRect(-half,-7,half*2,14);ctx.globalAlpha=1;
-   ctx.strokeStyle="#20dc6b";ctx.lineWidth=3;ctx.strokeRect(-half,-7,half*2,14);
+  ctx.fillStyle="#20dc6b";ctx.globalAlpha=.2;ctx.fillRect(-half,-7,half*2,14);ctx.globalAlpha=1;
+  ctx.strokeStyle="#20dc6b";ctx.lineWidth=3;ctx.strokeRect(-half,-7,half*2,14);
  }
  ctx.restore();
  ctx.save();ctx.fillStyle=finish?"#fff":"#20dc6b";ctx.font=`900 ${Math.max(10,W*.012)}px system-ui`;ctx.textAlign="center";
  ctx.fillText(finish?"CÉL":"START",p.x,p.y-W*.055);ctx.restore();
 }
 function directionArrows(){
- for(const i of [22,58,94,130,166,202]){
+ for(const i of [18,52,86,120,154,188,222,256]){
   if(i>=track.length-3)continue;
   const p=track[i],a=tangent(i);
-  ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);ctx.globalAlpha=.5;ctx.fillStyle="#dce1e2";
-  ctx.beginPath();ctx.moveTo(13,0);ctx.lineTo(-7,-7);ctx.lineTo(-3,0);ctx.lineTo(-7,7);ctx.closePath();ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);ctx.globalAlpha=.52;ctx.fillStyle="#e1e5e6";
+  ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-7,-7);ctx.lineTo(-3,0);ctx.lineTo(-7,7);ctx.closePath();ctx.fill();ctx.restore();
  }
 }
 function drawTrack(){
- line(track,"#192123",W*.166);
- line(track,"#c9c4b1",W*.145);
- line(track,"#3f4649",W*.119);
- line(track,"#606668",Math.max(2,W*.003));
- drawKerbs();directionArrows();
- gate(2,false);gate(track.length-3,true);
+ line(track,"#192123",W*.166);line(track,"#c9c4b1",W*.145);line(track,"#3f4649",W*.119);
+ line(track,"#606668",Math.max(2,W*.003));drawKerbs();directionArrows();gate(2,false);gate(track.length-3,true);
 }
-function drawPath(){
- if(path.length<2)return;
- line(path,"#d7a91e",Math.max(7,W*.008));
- line(path,"#fff06a",Math.max(2,W*.0027));
-}
+function drawPath(){if(path.length>1){line(path,"#d7a91e",Math.max(7,W*.008));line(path,"#fff06a",Math.max(2,W*.0027))}}
 function drawCar(){
  if(!racing&&!finished)return;
  ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.a);
@@ -166,15 +137,21 @@ function startDraw(e){
  if(racing)return;
  const p=pos(e),s=track[2];
  if(Math.hypot(p.x-s.x,p.y-s.y)>W*.10){statusEl.textContent="A zöld START kapuból kell indulnod";return}
- drawing=true;path=[p];tip.style.display="none";pointsEl.textContent="1";
+ drawing=true;path=[p];drawSamples=[];lastDrawPoint=p;lastDrawTime=performance.now();
+ tip.style.display="none";pointsEl.textContent="1";
  statusEl.textContent="Rajzolás… vezesd a vonalat a kockás CÉL-ig";
  canvas.setPointerCapture?.(e.pointerId);draw();
 }
 function moveDraw(e){
  if(!drawing||racing)return;
- const p=pos(e),q=path[path.length-1];
- if(Math.hypot(p.x-q.x,p.y-q.y)<2)return;
- path.push(p);pointsEl.textContent=path.length;draw();
+ const p=pos(e),q=path.at(-1),now=performance.now(),dt=Math.max(8,now-lastDrawTime),dist=Math.hypot(p.x-q.x,p.y-q.y);
+ if(dist<2)return;
+ path.push(p);
+ // Store the user's actual drawing speed at each route sample.
+ const pxPerSec=dist/(dt/1000);
+ drawSamples.push({x:p.x,y:p.y,pxPerSec});
+ lastDrawPoint=p;lastDrawTime=now;
+ pointsEl.textContent=path.length;draw();
 }
 function endDraw(){
  if(!drawing)return;drawing=false;
@@ -183,61 +160,103 @@ function endDraw(){
  if(d>W*.12){statusEl.textContent="A vonal végét vidd a kockás CÉL-hoz";raceBtn.disabled=true;draw();return}
  raceBtn.disabled=false;statusEl.textContent="Kész — indíthatod a versenyt";draw();
 }
-canvas.addEventListener("pointerdown",startDraw);
-canvas.addEventListener("pointermove",moveDraw);
-canvas.addEventListener("pointerup",endDraw);
-canvas.addEventListener("pointercancel",endDraw);
+canvas.addEventListener("pointerdown",startDraw);canvas.addEventListener("pointermove",moveDraw);
+canvas.addEventListener("pointerup",endDraw);canvas.addEventListener("pointercancel",endDraw);
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 
 function buildRace(){
  const out=[];
  for(let i=0;i<path.length-1;i++){
   const a=path[i],b=path[i+1],d=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(d/3));
-  for(let j=0;j<n;j++){const u=j/n;out.push(P(a.x+(b.x-a.x)*u,a.y+(b.y-a.y)*u))}
+  const sample=drawSamples[Math.min(i,drawSamples.length-1)];
+  const userSpeed=sample?.pxPerSec||220;
+  for(let j=0;j<n;j++){const u=j/n;out.push({x:a.x+(b.x-a.x)*u,y:a.y+(b.y-a.y)*u,userSpeed})}
  }
- out.push(path[path.length-1]);return out;
+ out.push({x:path.at(-1).x,y:path.at(-1).y,userSpeed:drawSamples.at(-1)?.pxPerSec||220});
+ return out;
+}
+function nearestTrackDistance(x,y){
+ let best=Infinity;
+ for(let i=0;i<track.length;i+=3){best=Math.min(best,Math.hypot(x-track[i].x,y-track[i].y))}
+ return best;
+}
+function routeCurvature(i){
+ const n=race.length,step=Math.max(3,Math.floor(n*.012));
+ const a=race[Math.max(0,i-step)],b=race[i],c=race[Math.min(n-1,i+step)];
+ const ab=Math.atan2(b.y-a.y,b.x-a.x),bc=Math.atan2(c.y-b.y,c.x-b.x);
+ let da=bc-ab;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+ const d=Math.max(1,Math.hypot(c.x-a.x,c.y-a.y));
+ return Math.abs(da)/(d/100);
 }
 function startRace(){
  if(racing||path.length<15)return;
  race=buildRace();progress=0;racing=true;finished=false;
- startTime=performance.now();lastTime=startTime;turboUntil=0;
- raceBtn.disabled=true;clearBtn.disabled=true;turboBtn.disabled=false;statusEl.textContent="VERSENY!";
- car={x:race[0].x,y:race[0].y,a:Math.atan2(race[1].y-race[0].y,race[1].x-race[0].x)};
+ startTime=performance.now();lastTime=startTime;turbo=100;turboHeld=false;
+ raceBtn.disabled=true;clearBtn.disabled=true;turboBtn.disabled=false;
+ statusEl.textContent="VERSENY!";updateTurboUI();
+ car={x:race[0].x,y:race[0].y,a:Math.atan2(race[1].y-race[0].y,race[1].x-race[0].x),slip:0};
  requestAnimationFrame(loop);
 }
-function updateCar(){
- const i=Math.min(Math.floor(progress),race.length-2),u=progress-i,a=race[i],b=race[i+1];
- car.x=a.x+(b.x-a.x)*u;car.y=a.y+(b.y-a.y)*u;car.a=Math.atan2(b.y-a.y,b.x-a.x);
+function updateCar(i){
+ const idx=Math.min(Math.floor(progress),race.length-2),u=progress-idx,a=race[idx],b=race[idx+1];
+ const targetA=Math.atan2(b.y-a.y,b.x-a.x);
+ // Understeer/drift: heading reacts slower when the requested route speed is high.
+ const curv=routeCurvature(idx);
+ const safeFactor=Math.max(.42,1.05-curv*.55);
+ const off=nearestTrackDistance(car.x,car.y);
+ const offFactor=off>W*.06?.58:1;
+ const desired=(a.userSpeed||220)*safeFactor*offFactor;
+ const prev=car._speed||desired;
+ const actual=prev+(desired-prev)*.045;
+ car._speed=actual;
+ // Progress is driven by the speed the player drew, not a fixed animation speed.
+ const avgPx=Math.max(25,W*.04);
+ progress += (actual/avgPx)*(16.666/16.666);
+ let da=targetA-car.a;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+ const grip=Math.max(.08,Math.min(.32,1-curv*.20));
+ car.a+=da*grip;
+ const look=actual*.012;
+ const nx=Math.cos(car.a)*look,ny=Math.sin(car.a)*look;
+ const idealX=a.x+(b.x-a.x)*u,idealY=a.y+(b.y-a.y)*u;
+ // Lateral slip grows when cornering fast and decays on straights.
+ car.slip += (curv*actual/180 - car.slip)*.035;
+ const sideX=-Math.sin(targetA),sideY=Math.cos(targetA);
+ car.x=idealX+sideX*car.slip*W*.10+nx;
+ car.y=idealY+sideY*car.slip*W*.10+ny;
+ return {actual,curv,off};
 }
 function loop(now){
  if(!racing)return;
  const dt=Math.min(50,now-lastTime);lastTime=now;
- const turbo=now<turboUntil?1.7:1;
- // Progress is continuous and independent of path point count.
- progress += 0.42*turbo*(dt/16.666);
- updateCar();
- const pct=progress/(race.length-1)*100;
- speedEl.textContent=Math.round(75+(turbo-1)*65);
- distanceEl.textContent=Math.min(100,Math.round(pct));
+ // One turbo press consumes a finite fuel reserve; holding it does not make it infinite.
+ if(turboHeld&&turbo>0) turbo=Math.max(0,turbo-dt*.045);
+ const idx=Math.min(Math.floor(progress),race.length-2);
+ const state=updateCar(idx);
+ const pct=Math.min(100,progress/(race.length-1)*100);
+ const kmh=Math.round(Math.max(0,state.actual/(W/1100)*.62));
+ speedEl.textContent=kmh;
+ distanceEl.textContent=Math.round(pct);
  timeEl.textContent=((now-startTime)/1000).toFixed(2);
- draw();
+ updateTurboUI();draw();
  if(progress>=race.length-1){finishRace();return}
  requestAnimationFrame(loop);
 }
+function updateTurboUI(){
+ turboFill.style.width=`${turbo}%`;turboLabel.textContent=`${Math.round(turbo)}%`;
+ if(turbo<=0)turboBtn.disabled=true;
+}
+turboBtn.addEventListener("pointerdown",e=>{if(racing&&turbo>0){turboHeld=true;try{turboBtn.setPointerCapture(e.pointerId)}catch(_){}}});
+turboBtn.addEventListener("pointerup",()=>turboHeld=false);
+turboBtn.addEventListener("pointercancel",()=>turboHeld=false);
 function finishRace(){
- progress=race.length-1;updateCar();racing=false;finished=true;
+ progress=race.length-1;updateCar(race.length-2);racing=false;finished=true;turboHeld=false;
  turboBtn.disabled=true;clearBtn.disabled=false;speedEl.textContent="0";distanceEl.textContent="100";
  statusEl.textContent="CÉLBA ÉRTÉL 🏁";draw();
 }
 function reset(){
- drawing=false;racing=false;finished=false;path=[];race=[];progress=0;
+ drawing=false;racing=false;finished=false;turboHeld=false;path=[];race=[];progress=0;turbo=100;
  raceBtn.disabled=true;turboBtn.disabled=true;clearBtn.disabled=false;
- statusEl.textContent="Indulj a zöld START kapuból";
- speedEl.textContent="0";distanceEl.textContent="0";timeEl.textContent="0.00";pointsEl.textContent="0";
- tip.style.display="block";draw();
+ statusEl.textContent="Indulj a zöld START kapuból";speedEl.textContent="0";distanceEl.textContent="0";
+ timeEl.textContent="0.00";pointsEl.textContent="0";tip.style.display="block";updateTurboUI();draw();
 }
-turboBtn.addEventListener("pointerdown",()=>{if(racing)turboUntil=performance.now()+1200});
-raceBtn.addEventListener("click",startRace);
-clearBtn.addEventListener("click",reset);
-resize();
-window.addEventListener('load',resize);
+resize();window.addEventListener("load",resize);
