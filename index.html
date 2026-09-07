@@ -3,14 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>DrawRace Inspired — Prototype</title>
+  <title>Trace Racing</title>
+
   <link rel="stylesheet" href="style.css">
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <meta name="theme-color" content="#E10600">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
+
 <body>
   <main class="game-shell">
     <header class="topbar">
       <div>
-        <div class="eyebrow">DRAW RACE INSPIRED</div>
+        <div class="eyebrow">TRACE RACING</div>
         <h1>Track 01 · Alpine Hairpin</h1>
       </div>
       <div class="status" id="status">Rajzold meg a versenyívet</div>
@@ -38,6 +49,16 @@
       <div><span>ÍVPONTOK</span><b id="points">0</b></div>
     </section>
   </main>
+
   <script src="game.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js")
+          .then(() => console.log("Trace Racing service worker registered"))
+          .catch(error => console.error("Service worker registration failed:", error));
+      });
+    }
+  </script>
 </body>
 </html>
