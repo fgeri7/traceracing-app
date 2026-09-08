@@ -1,23 +1,17 @@
-TRACE RACING — GAMEPLAY v7
+TRACE RACING — GAMEPLAY v8
 
-Replace:
-index.html
-style.css
-game.js
-manifest.json
-sw.js
+Replace index.html, style.css, game.js, manifest.json and sw.js.
+Keep icons/, assets/ and brand/.
 
-Keep icons/assets/brand unchanged.
-
-v7:
-- Reworked circuit: one coherent, non-crossing race circuit filling the play area.
-- Long start/finish straight plus several distinct corners/hairpins/esses.
-- Kerbs are attached to the road edge, never floating inside the road.
-- Player drawing speed is sampled and used to drive race speed.
-- Corner curvature reduces safe speed.
-- Excessive corner-entry speed produces visible understeer/drift rather than ignoring the corner.
-- Leaving the asphalt reduces effective speed.
-- Turbo is a finite 100% reserve, consumed while held, with a visible meter.
-- Right-hand controls and full-size play area retained.
-- Long-press selection/callout and pull-to-refresh remain disabled.
-- Service worker cache bumped to v7.
+v8 changes:
+- Completely redesigned as a single closed, non-crossing circuit.
+- Road occupies the full play area with visible green infield/outfield between sections.
+- No disconnected/overlapping asphalt ribbons.
+- Kerbs are attached to road boundaries.
+- Drawing speed controls the car's target speed.
+- Corner curvature reduces speed; excessive entry speed causes understeer/slip.
+- Off-road route reduces speed.
+- Finite 100% turbo with visible fuel meter.
+- Explicit Android-friendly button event handlers.
+- Landscape-first and overscroll/long-press protections retained.
+- Service-worker cache bumped to v8.

@@ -15,41 +15,34 @@
 </head>
 <body>
 <div id="rotateOverlay"><div class="rotate-icon">↻</div><strong>Fordítsd el a telefont</strong><span>A Trace Racing fekvő módban játszható.</span></div>
-
 <main class="app">
 <header class="topbar">
   <div><div class="eyebrow">TRACE RACING</div><h1>Track 01 · Alpine Hairpin</h1></div>
   <div id="status" class="status">Indulj a zöld START kapuból</div>
 </header>
-
 <div class="race-layout">
   <section class="track-panel" id="stage">
     <canvas id="game"></canvas>
     <div id="drawTip" class="draw-tip"><b>RAJZOLD MEG A VERSENYÍVET</b><span>START → CÉL</span></div>
   </section>
-
-  <aside class="control-panel">
+  <aside class="control-panel" id="controls">
     <div class="panel-title">RACE CONTROL</div>
-    <button id="raceBtn" class="btn race" disabled>VERSENY ▶</button>
-    <button id="turboBtn" class="btn turbo" disabled>TURBO <span id="turboLabel">100%</span></button>
-    <button id="clearBtn" class="btn clear">ÚJRARAJZOLÁS</button>
-
+    <button id="raceBtn" type="button" class="btn race" disabled>VERSENY ▶</button>
+    <button id="turboBtn" type="button" class="btn turbo" disabled>TURBO <span id="turboLabel">100%</span></button>
+    <button id="clearBtn" type="button" class="btn clear">ÚJRARAJZOLÁS</button>
     <div class="stats">
       <div><span>SEBESSÉG</span><b id="speed">0</b><small> km/h</small></div>
       <div><span>TÁV</span><b id="distance">0</b><small> %</small></div>
       <div><span>IDŐ</span><b id="time">0.00</b><small> s</small></div>
       <div><span>ÍVPONTOK</span><b id="points">0</b></div>
     </div>
-
-    <div class="turbo-meter"><div class="turbo-meter-fill" id="turboFill"></div></div><div class="help">
-      <div><i class="start"></i> START</div>
-      <div><i class="finish"></i> CÉL</div>
-      <div><i class="route"></i> saját versenyív</div>
+    <div class="turbo-meter"><div class="turbo-meter-fill" id="turboFill"></div></div>
+    <div class="help">
+      <div><i class="start"></i> START</div><div><i class="finish"></i> CÉL</div><div><i class="route"></i> saját versenyív</div>
     </div>
   </aside>
 </div>
 </main>
-
 <script src="game.js"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.error));
