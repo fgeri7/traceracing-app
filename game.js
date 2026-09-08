@@ -517,36 +517,36 @@ function updateCar(dt){
   const idx=Math.min(Math.floor(progress),raceRoute.length-2);
   const a=raceRoute[idx],b=raceRoute[idx+1];
 
-  // Exact finger speed is the base target speed.
+  // The speed recorded while drawing is the baseline speed of the car.
   let target=a.v;
-
-  // Finite turbo only modifies that measured speed.
   if(turboHeld&&turbo>0)target*=1.5;
 
   const signedTurn=routeTurn(idx);
-  const curv=Math.abs(signedTurn);
+  const curvature=Math.abs(signedTurn)/100; // approximately 1 / turning radius
 
-  /*
-    Corner model: the drawn route remains the source of truth.
-    Only when the measured finger speed is too high for the curvature do we
-    introduce a small, controlled lateral slide. The car must never wander
-    hundreds of pixels away from the user's line.
-  */
-  const safeSpeed=80+260/(1+curv*1.8);
-  const excess=Math.max(0,target-safeSpeed);
-  const cornerStress=clamp(excess/Math.max(1,target),0,1);
+  // Available lateral grip. Required cornering force grows with v², so the
+  // exact same corner can be clean at low speed and slippery at high speed.
+  const grip=360;
+  const requiredGrip=target*target*curvature;
+  const cornerStress=clamp((requiredGrip-grip)/(grip*1.15),0,1);
 
-  // Leave the asphalt? The car follows the user's line, but off-track lines
-  // lose speed noticeably.
+  // Entering a corner too quickly costs speed. We do not hard-stop the car;
+  // it sheds speed progressively, just like a car recovering from a slide.
+  const safeSpeed=clamp(Math.sqrt(grip/Math.max(curvature,.00008)),180,680);
+  const cornerTarget=safeSpeed*(1+.10*cornerStress);
+  if(target>cornerTarget){
+    target=target+(cornerTarget-target)*.92;
+  }
+
+  // Off the asphalt = additional drag. The car can recover afterwards.
   const offRoad=nearestTrackDistance({x:car.x,y:car.y})>W*.058;
-  const offRoadMultiplier=offRoad?.48:1;
+  if(offRoad)target*=.52;
 
-  target*=Math.max(.18,1-cornerStress*.62);
-  target*=offRoadMultiplier;
-
-  // Responsive speed change so the car closely follows the drawing speed.
-  const response=.78;
-  car.speed+=(target-car.speed)*Math.min(1,response*dt/16.666);
+  // Smoothly approach the target speed. This keeps normal line-following
+  // responsive while allowing a corner slide to develop naturally.
+  const response=1-Math.exp(-dt/72);
+  car.speed+=(target-car.speed)*response;
+  car.speed=Math.max(15,car.speed);
 
   const segment=dist(a,b);
   progress+=(car.speed*dt/1000)/Math.max(.25,segment);
@@ -554,41 +554,69 @@ function updateCar(dt){
   const i=Math.min(Math.floor(progress),raceRoute.length-2);
   const u=progress-i;
   const p=raceRoute[i],q=raceRoute[i+1];
-
   const routeAngle=routeTangent(i);
+
+  // Recalculate grip using the actual current speed. This is what makes the
+  // slide build as the car enters a corner and disappear as it slows down.
+  const currentTurn=routeTurn(i);
+  const currentCurvature=Math.abs(currentTurn)/100;
+  const currentRequiredGrip=car.speed*car.speed*currentCurvature;
+  const currentStress=clamp((currentRequiredGrip-grip)/(grip*1.15),0,1);
+
+  // Heading follows the drawn tangent. Under high corner stress the response
+  // is weaker, so the car retains a little of its previous direction.
   let headingDelta=routeAngle-car.a;
   while(headingDelta>Math.PI)headingDelta-=Math.PI*2;
   while(headingDelta<-Math.PI)headingDelta+=Math.PI*2;
-
-  /*
-    At excessive corner speed the car cannot instantly rotate to the route.
-    Instead it keeps part of its previous heading and develops a lateral
-    velocity. This makes the car visibly leave the drawn line.
-  */
-  const steeringGrip=clamp(.90-cornerStress*.72, .16, .90);
-  car.a+=headingDelta*Math.min(1,steeringGrip*dt/16.666);
+  const steeringGrip=clamp(.92-currentStress*.52,.36,.92);
+  car.a+=headingDelta*(1-Math.exp(-steeringGrip*dt/42));
 
   const idealX=p.x+(q.x-p.x)*u;
   const idealY=p.y+(q.y-p.y)*u;
+  const normalX=-Math.sin(routeAngle);
+  const normalY=Math.cos(routeAngle);
 
-  const sideX=-Math.sin(routeAngle);
-  const sideY=Math.cos(routeAngle);
+  // Positive curvature = left turn, whose outside is the right side of the
+  // road. Negative curvature = right turn, whose outside is the left side.
+  const turnSign=Math.abs(currentTurn)<.0005?0:Math.sign(currentTurn);
+  const outwardX=-turnSign*normalX;
+  const outwardY=-turnSign*normalY;
 
-  const maxDrift=W*.018;
-  const driftTarget=clamp(signedTurn*cornerStress*W*.10,-maxDrift,maxDrift);
+  // Stateful lateral dynamics:
+  //   too fast -> lateral acceleration outward -> visible slide
+  //   speed falls -> grip returns -> spring/damping pulls car back to line
+  // The maximum displacement is intentionally small so the line-following
+  // behavior from v16 remains intact.
+  const maxDrift=W*.032;
+  let lateralVelocity=car.driftX*normalX+car.driftY*normalY;
+  const outwardAcceleration=W*.30*currentStress;
+  const damping=currentStress>.08?3.5:4.2;
+  const returnStrength=7.0;
 
-  // Preserve only a small amount of drift momentum, then recover the exact
-  // drawn line quickly once the corner is over.
-  car.slip+=(driftTarget-car.slip)*Math.min(1,.10*dt/16.666);
+  if(currentStress>.02 && turnSign!==0){
+    lateralVelocity+=outwardX*normalX+outwardY*normalY;
+    lateralVelocity+=Math.sign(outwardX*normalX+outwardY*normalY)*outwardAcceleration*dt/1000;
+  }
+
+  // Once grip is available again, spring force and damping return the car to
+  // the exact user-drawn line. This is the desired "slide -> recover" behavior.
+  lateralVelocity+=(-car.slip*returnStrength-lateralVelocity*damping)*dt/1000;
+  lateralVelocity=clamp(lateralVelocity,-W*.18,W*.18);
+
+  car.slip+=lateralVelocity*dt/1000;
   car.slip=clamp(car.slip,-maxDrift,maxDrift);
 
-  car.x=idealX+sideX*car.slip;
-  car.y=idealY+sideY*car.slip;
+  car.driftX=normalX*lateralVelocity;
+  car.driftY=normalY*lateralVelocity;
 
-  // A little extra drag when the car is sliding.
-  if(cornerStress>.05){
-    car.speed*=1-Math.min(.018,cornerStress*.010*dt/16.666);
+  // A small extra rolling loss while actually sliding produces time loss
+  // without making the car feel stuck.
+  if(currentStress>.05){
+    car.speed*=1-Math.min(.018,currentStress*.010*dt/16.666);
   }
+
+  car.x=idealX+normalX*car.slip;
+  car.y=idealY+normalY*car.slip;
 }
 
 function loop(now){

@@ -1,10 +1,10 @@
-const CACHE_NAME = "trace-racing-v16";
+const CACHE_NAME = "trace-racing-v17";
 const SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=16",
-  "./game.js?v=16",
-  "./manifest.json?v=16",
+  "./style.css?v=17",
+  "./game.js?v=17",
+  "./manifest.json?v=17",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/maskable-512.png",
