@@ -23,13 +23,13 @@
 <div class="race-layout">
   <section class="track-panel" id="stage">
     <canvas id="game"></canvas>
-    <div id="drawTip" class="draw-tip"><b>RAJZOLD MEG A VERSENYÍVET</b><span>START → CÉL</span></div>
+    <div id="drawTip" class="draw-tip"><b>RAJZOLD MEG A VERSENYÍVET</b><span>START → egy teljes kör → CÉL</span></div>
   </section>
   <aside class="control-panel" id="controls">
     <div class="panel-title">RACE CONTROL</div>
-    <button id="raceBtn" type="button" class="btn race" disabled onclick="startRace()">VERSENY ▶</button>
+    <button id="raceBtn" type="button" class="btn race" disabled>VERSENY ▶</button>
     <button id="turboBtn" type="button" class="btn turbo" disabled>TURBO <span id="turboLabel">100%</span></button>
-    <button id="clearBtn" type="button" class="btn clear" onclick="reset()">ÚJRARAJZOLÁS</button>
+    <button id="clearBtn" type="button" class="btn clear">ÚJRARAJZOLÁS</button>
     <div class="stats">
       <div><span>SEBESSÉG</span><b id="speed">0</b><small> km/h</small></div>
       <div><span>TÁV</span><b id="distance">0</b><small> %</small></div>
