@@ -517,37 +517,34 @@ function updateCar(dt){
   const idx=Math.min(Math.floor(progress),raceRoute.length-2);
   const a=raceRoute[idx],b=raceRoute[idx+1];
 
-  // The speed recorded while drawing is the baseline speed of the car.
+  // The speed recorded while drawing is the driver's requested speed.
+  // We keep this as the baseline and let the physics decide how much of it
+  // can actually be carried through a corner.
   let target=a.v;
   if(turboHeld&&turbo>0)target*=1.5;
 
   const signedTurn=routeTurn(idx);
-  const curvature=Math.abs(signedTurn)/100; // approximately 1 / turning radius
+  const curvature=Math.abs(signedTurn)/100;
 
-  // Available lateral grip. Required cornering force grows with v², so the
-  // exact same corner can be clean at low speed and slippery at high speed.
-  const grip=360;
+  // Draw Race-style grip model:
+  // required lateral acceleration is proportional to v² * curvature.
+  // Below the grip limit the car stays planted on the drawn line.
+  // Above it, excess demand becomes outward lateral acceleration.
+  const GRIP=720;
   const requiredGrip=target*target*curvature;
-  const cornerStress=clamp((requiredGrip-grip)/(grip*1.15),0,1);
+  const stress=clamp((requiredGrip-GRIP)/(GRIP*.75),0,1.8);
 
-  // Entering a corner too quickly costs speed. We do not hard-stop the car;
-  // it sheds speed progressively, just like a car recovering from a slide.
-  const safeSpeed=clamp(Math.sqrt(grip/Math.max(curvature,.00008)),180,680);
-  const cornerTarget=safeSpeed*(1+.10*cornerStress);
-  if(target>cornerTarget){
-    target=target+(cornerTarget-target)*.92;
-  }
-
-  // Off the asphalt = additional drag. The car can recover afterwards.
+  // Asphalt drag. Off-road is a consequence of the slide, not the cause of it.
   const offRoad=nearestTrackDistance({x:car.x,y:car.y})>W*.058;
-  if(offRoad)target*=.52;
+  if(offRoad)target*=.58;
 
-  // Smoothly approach the target speed. This keeps normal line-following
-  // responsive while allowing a corner slide to develop naturally.
-  const response=1-Math.exp(-dt/72);
-  car.speed+=(target-car.speed)*response;
+  // Speed follows the drawn-line speed, but a real slide costs speed.
+  const speedResponse=1-Math.exp(-dt/95);
+  car.speed+=(target-car.speed)*speedResponse;
   car.speed=Math.max(15,car.speed);
 
+  // Move along the exact drawn route. Lateral physics is applied separately
+  // so the route remains the authoritative racing line.
   const segment=dist(a,b);
   progress+=(car.speed*dt/1000)/Math.max(.25,segment);
 
@@ -556,63 +553,75 @@ function updateCar(dt){
   const p=raceRoute[i],q=raceRoute[i+1];
   const routeAngle=routeTangent(i);
 
-  // Recalculate grip using the actual current speed. This is what makes the
-  // slide build as the car enters a corner and disappear as it slows down.
+  // Re-evaluate the corner using the speed the car is actually carrying.
   const currentTurn=routeTurn(i);
   const currentCurvature=Math.abs(currentTurn)/100;
   const currentRequiredGrip=car.speed*car.speed*currentCurvature;
-  const currentStress=clamp((currentRequiredGrip-grip)/(grip*1.15),0,1);
+  const currentStress=clamp((currentRequiredGrip-GRIP)/(GRIP*.75),0,1.8);
 
-  // Heading follows the drawn tangent. Under high corner stress the response
-  // is weaker, so the car retains a little of its previous direction.
+  // Heading follows the line strongly when grip is available. During a slide
+  // it lags behind the route tangent, creating visible inertia.
   let headingDelta=routeAngle-car.a;
   while(headingDelta>Math.PI)headingDelta-=Math.PI*2;
   while(headingDelta<-Math.PI)headingDelta+=Math.PI*2;
-  const steeringGrip=clamp(.92-currentStress*.52,.36,.92);
-  car.a+=headingDelta*(1-Math.exp(-steeringGrip*dt/42));
+  const steeringGrip=clamp(.95-currentStress*.34,.34,.95);
+  car.a+=headingDelta*(1-Math.exp(-steeringGrip*dt/45));
 
   const idealX=p.x+(q.x-p.x)*u;
   const idealY=p.y+(q.y-p.y)*u;
   const normalX=-Math.sin(routeAngle);
   const normalY=Math.cos(routeAngle);
 
-  // Positive curvature = left turn, whose outside is the right side of the
-  // road. Negative curvature = right turn, whose outside is the left side.
-  const turnSign=Math.abs(currentTurn)<.0005?0:Math.sign(currentTurn);
-  const outwardX=-turnSign*normalX;
-  const outwardY=-turnSign*normalY;
+  // Outside of the corner. Positive turn = left, so the outside is right.
+  const turnSign=Math.abs(currentTurn)<.00035?0:Math.sign(currentTurn);
+  const outsideSign=-turnSign;
 
-  // Stateful lateral dynamics:
-  //   too fast -> lateral acceleration outward -> visible slide
-  //   speed falls -> grip returns -> spring/damping pulls car back to line
-  // The maximum displacement is intentionally small so the line-following
-  // behavior from v16 remains intact.
-  const maxDrift=W*.032;
+  // Lateral state is expressed in route-normal coordinates. It behaves like
+  // a lightweight tyre model: excess cornering demand pushes outward,
+  // while available grip creates a restoring force back toward the line.
   let lateralVelocity=car.driftX*normalX+car.driftY*normalY;
-  const outwardAcceleration=W*.30*currentStress;
-  const damping=currentStress>.08?3.5:4.2;
-  const returnStrength=7.0;
 
-  if(currentStress>.02 && turnSign!==0){
-    lateralVelocity+=outwardX*normalX+outwardY*normalY;
-    lateralVelocity+=Math.sign(outwardX*normalX+outwardY*normalY)*outwardAcceleration*dt/1000;
+  const maxDrift=W*.075;
+  const maxLateralVelocity=W*.42;
+
+  if(turnSign!==0 && currentStress>0){
+    // Strong enough to be clearly visible, but proportional to the excess
+    // cornering demand rather than being a fixed offset.
+    const outwardAccel=(W*.95)*(currentStress/1.8);
+    lateralVelocity+=outsideSign*outwardAccel*dt/1000;
   }
 
-  // Once grip is available again, spring force and damping return the car to
-  // the exact user-drawn line. This is the desired "slide -> recover" behavior.
-  lateralVelocity+=(-car.slip*returnStrength-lateralVelocity*damping)*dt/1000;
-  lateralVelocity=clamp(lateralVelocity,-W*.18,W*.18);
+  // Tyre recovery: as speed falls, grip becomes sufficient again and the
+  // spring/damper pulls the car back toward the player's exact line.
+  const distanceRatio=clamp(car.slip/maxDrift,-1,1);
+  const recovery=5.8+Math.max(0,1-currentStress/0.8)*5.5;
+  const lateralDamping=2.8+currentStress*1.2;
+  lateralVelocity+=(-distanceRatio*maxDrift*recovery-lateralVelocity*lateralDamping)*dt/1000;
+  lateralVelocity=clamp(lateralVelocity,-maxLateralVelocity,maxLateralVelocity);
 
   car.slip+=lateralVelocity*dt/1000;
+
+  // Never let a slide become an uncontrolled permanent teleport away from the
+  // line. At high stress the cap is reached gradually; as stress disappears
+  // the recovery force brings the car back smoothly.
   car.slip=clamp(car.slip,-maxDrift,maxDrift);
 
   car.driftX=normalX*lateralVelocity;
   car.driftY=normalY*lateralVelocity;
 
-  // A small extra rolling loss while actually sliding produces time loss
-  // without making the car feel stuck.
-  if(currentStress>.05){
-    car.speed*=1-Math.min(.018,currentStress*.010*dt/16.666);
+  // Frictional energy loss: entering too fast costs time. The stronger the
+  // slide, the more speed is scrubbed away, which eventually lets the tyres
+  // regain grip and recover the racing line.
+  if(currentStress>0){
+    const slideLoss=.020+Math.min(.065,currentStress*.030);
+    car.speed*=Math.max(.82,1-slideLoss*dt/16.666);
+  }
+
+  // A little additional loss while the car is visibly displaced prevents a
+  // high-speed slide from being free.
+  const displacementRatio=Math.abs(car.slip)/maxDrift;
+  if(displacementRatio>.08){
+    car.speed*=Math.max(.90,1-.018*displacementRatio*dt/16.666);
   }
 
   car.x=idealX+normalX*car.slip;
