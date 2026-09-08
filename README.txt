@@ -1,30 +1,18 @@
-TRACE RACING — GAMEPLAY v10
+TRACE RACING — GAMEPLAY v11
 
-This version is a substantive rewrite of the track and race engine.
+This is a deliberate simplification of the circuit and race engine.
 
-Replace:
-- index.html
-- style.css
-- game.js
-- manifest.json
-- sw.js
+- Track 01 is now a clean, long oval only.
+- There is one continuous asphalt loop with clearly separated green infield.
+- START/CÉL is a single official line; the player must return to it after travelling most of a full lap.
+- Shortcuts/straight-line cuts are rejected by minimum travelled-distance validation.
+- The player can draw directly on the canvas with touch/pointer input.
+- The race car follows the player's drawn line exactly.
+- Every drawing segment stores the actual finger speed in pixels/second.
+- During the race the car's speed follows those measured drawing speeds.
+- Turbo is finite and drains only while held.
+- Landscape layout and long-press/pull-to-refresh protections remain.
+- Service-worker cache is v11.
 
-Keep:
-- icons/
-- assets/
-- brand/
-
-V10 goals:
-1. One continuous, clearly separated circuit.
-2. Start and finish are on the same road but separated by the full lap.
-3. The drawing must pass ordered checkpoints around the whole circuit.
-   A short shortcut to the finish is rejected.
-4. The player's measured finger speed is stored per section of the drawing.
-5. During the race, the car's target speed follows those measured speeds.
-6. Corner curvature only penalizes the car when the entry speed is too high.
-7. Excessive corner speed causes lateral slip/drift.
-8. Off-road drawing reduces speed.
-9. Turbo is finite (100%) and drains while held.
-10. Race and redraw buttons use explicit Android-safe handlers.
-11. Landscape-first layout and overscroll/long-press protections remain.
-12. Service-worker cache is v10.
+Replace index.html, style.css, game.js, manifest.json and sw.js.
+Keep the existing icons/assets/brand folders.
