@@ -435,7 +435,7 @@ function routeTangent(i){
   return Math.atan2(b.y-a.y,b.x-a.x);
 }
 
-function routeCurvature(i){
+function routeTurn(i){
   const step=Math.max(5,Math.floor(raceRoute.length*.008));
   const a=raceRoute[Math.max(0,i-step)];
   const b=raceRoute[i];
@@ -449,7 +449,11 @@ function routeCurvature(i){
   while(da<-Math.PI)da+=Math.PI*2;
 
   const chord=Math.max(1,dist(a,c));
-  return Math.abs(da)/(chord/100);
+  return da/(chord/100);
+}
+
+function routeCurvature(i){
+  return Math.abs(routeTurn(i));
 }
 
 function nearestTrackDistance(p){
@@ -519,15 +523,16 @@ function updateCar(dt){
   // Finite turbo only modifies that measured speed.
   if(turboHeld&&turbo>0)target*=1.5;
 
-  const curv=routeCurvature(idx);
+  const signedTurn=routeTurn(idx);
+  const curv=Math.abs(signedTurn);
 
   /*
-    Corner model:
-    - On a straight, almost all of the drawn speed is retained.
-    - In a sharp turn, there is a speed threshold.
-    - Arriving too fast creates both speed loss and lateral drift.
+    Corner model: the drawn route remains the source of truth.
+    Only when the measured finger speed is too high for the curvature do we
+    introduce a small, controlled lateral slide. The car must never wander
+    hundreds of pixels away from the user's line.
   */
-  const safeSpeed=300/(1+curv*3.0);
+  const safeSpeed=80+260/(1+curv*1.8);
   const excess=Math.max(0,target-safeSpeed);
   const cornerStress=clamp(excess/Math.max(1,target),0,1);
 
@@ -569,16 +574,16 @@ function updateCar(dt){
   const sideX=-Math.sin(routeAngle);
   const sideY=Math.cos(routeAngle);
 
-  const driftTarget=cornerStress*(W*.14)+Math.max(0,curv-.65)*W*.035;
+  const maxDrift=W*.018;
+  const driftTarget=clamp(signedTurn*cornerStress*W*.10,-maxDrift,maxDrift);
 
-  // Preserve a little drift momentum, then recover grip on straights.
-  car.slip+=(driftTarget-car.slip)*Math.min(1,.055*dt/16.666);
+  // Preserve only a small amount of drift momentum, then recover the exact
+  // drawn line quickly once the corner is over.
+  car.slip+=(driftTarget-car.slip)*Math.min(1,.10*dt/16.666);
+  car.slip=clamp(car.slip,-maxDrift,maxDrift);
 
-  const direction=headingDelta>=0?1:-1;
-  const driftOffset=car.slip*direction;
-
-  car.x=idealX+sideX*driftOffset;
-  car.y=idealY+sideY*driftOffset;
+  car.x=idealX+sideX*car.slip;
+  car.y=idealY+sideY*car.slip;
 
   // A little extra drag when the car is sliding.
   if(cornerStress>.05){
