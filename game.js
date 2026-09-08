@@ -22,7 +22,7 @@ let drawing=false,racing=false,finished=false;
 let lastDrawPoint=null,lastDrawTime=0;
 let progress=0,startTime=0,lastFrame=0;
 let turbo=100,turboHeld=false;
-let car={x:0,y:0,a:0,speed:0,slip:0,driftX:0,driftY:0};
+let car={x:0,y:0,a:0,speed:0,slip:0,driftX:0,driftY:0,cornerRecovery:0,cornerLock:0};
 let validationProgress=0;
 
 const CHECKPOINT_COUNT=28;
@@ -519,7 +519,9 @@ function startRace(){
     speed:Math.max(15,a.v),
     slip:0,
     driftX:0,
-    driftY:0
+    driftY:0,
+    cornerRecovery:0,
+    cornerLock:0
   };
 
   progress=0;
@@ -543,67 +545,82 @@ function startRace(){
 function updateCar(dt){
   if(progress>=raceRoute.length-1)return;
 
+  // Evaluate the corner BEFORE moving the car along the route. This is
+  // important: the speed loss caused by a bad entry must also reduce the
+  // distance covered during this frame. Previously progress was advanced
+  // using the pre-braking speed, which made aggressive corner-cutting too
+  // profitable.
   const idx=Math.min(Math.floor(progress),raceRoute.length-2);
   const a=raceRoute[idx],b=raceRoute[idx+1];
 
-  // The player's drawing defines the intended pace. The physics may reduce
-  // that pace when the requested cornering speed is beyond the tyre grip.
   let target=a.v;
   if(turboHeld&&turbo>0)target*=1.5;
 
-  const segment=Math.max(.25,dist(a,b));
-  progress+=(Math.max(0,car.speed)*dt/1000)/segment;
-
   const i=Math.min(Math.floor(progress),raceRoute.length-2);
   const p=raceRoute[i],q=raceRoute[i+1];
-  const u=progress-i;
   const routeAngle=routeTangent(i);
   const corner=routeCorner(i);
   const turnAngle=Math.abs(corner.turn);
-
-  // --- CORNER PHYSICS ---------------------------------------------------
-  // Instead of adding an arbitrary visual offset, calculate whether the
-  // requested speed is physically compatible with the actual angle of the
-  // player's drawn line. A near-90-degree corner therefore becomes a true
-  // low-grip event at racing speed.
-  //
-  // cornerSeverity: 0 = gentle bend, 1 = approximately 90 degrees.
   const cornerSeverity=clamp(turnAngle/(Math.PI*.50),0,1);
   const currentSpeed=Math.max(0,car.speed);
 
-  // Safe speed falls very sharply as the drawn corner approaches 90 degrees.
-  // Values are in canvas pixels/sec. A 90-degree corner is intentionally
-  // almost a hairpin: entering it at full drawing speed forces heavy braking.
-  const safeCornerSpeed=150+520*Math.pow(1-cornerSeverity,1.65);
-  const speedRatio=cornerSeverity>0.08
-    ? currentSpeed/Math.max(80,safeCornerSpeed)
+  // A 90-degree corner has a very low carrying speed. The important part is
+  // that this is compared with ENTRY speed, not merely the speed after the
+  // car has already started sliding.
+  const safeCornerSpeed=125+500*Math.pow(1-cornerSeverity,1.85);
+  const speedRatio=cornerSeverity>0.06
+    ? currentSpeed/Math.max(70,safeCornerSpeed)
     : 0;
+  const excess=clamp((speedRatio-1)/1.55,0,1);
+  const severeEntry=clamp(cornerSeverity*excess,0,1);
 
-  // The excess is nonlinear: slightly too fast is manageable, but entering
-  // a sharp corner far too fast causes a very strong loss of control.
-  const excess=clamp((speedRatio-1)/2.15,0,1);
-  const severeEntry=cornerSeverity*excess;
+  // A very bad entry creates a short, physical-looking loss-of-control phase.
+  // It is not a score penalty: the car itself spends real time braking, sliding
+  // and rebuilding grip. Two badly attacked 90-degree corners therefore cost
+  // much more time than two corners taken at a sensible speed.
+  if(severeEntry>.72){
+    const eventDuration=520+760*severeEntry;
+    car.cornerLock=Math.max(car.cornerLock,eventDuration);
+  }
+  car.cornerLock=Math.max(0,car.cornerLock-dt);
 
-  // Asphalt/off-road drag remains a secondary effect.
   const offRoad=nearestTrackDistance({x:car.x,y:car.y})>W*.058;
-  if(offRoad)target*=.58;
+  if(offRoad)target*=.52;
 
-  // When the corner cannot be carried, rapidly bleed speed. This is the key
-  // Draw Race-style behavior: a very fast 90-degree entry can lose almost all
-  // of its speed before the car recovers.
+  // Keep a short-lived "corner damage" state. This prevents the car from
+  // magically regaining full drawing speed the instant its nose points back
+  // toward the route. DrawRace-style recovery should cost real time.
+  car.cornerRecovery=Math.max(car.cornerRecovery,severeEntry);
+  car.cornerRecovery*=Math.exp(-dt/820);
+
   if(severeEntry>0){
-    const brakeRate=7.5+8.5*cornerSeverity;
-    car.speed*=Math.exp(-brakeRate*severeEntry*dt/1000);
+    // Very aggressive entry = near-emergency braking. A full-speed 90-degree
+    // corner can therefore fall to only a few px/s before recovery begins.
+    const brakeRate=10.5+14.5*cornerSeverity;
+    car.speed*=Math.exp(-brakeRate*Math.pow(severeEntry,1.12)*dt/1000);
   }
 
-  // Normal speed response. Never force the car back to the player's speed
-  // while it is in a severe slide; that would cancel the physics immediately.
-  const response=1-Math.exp(-dt/(severeEntry>.12?190:105));
+  // During recovery, the tyres remain busy scrubbing speed. This is the
+  // deliberate time penalty for trying to "save" a corner at excessive speed.
+  const recoveryTargetFactor=1-.76*car.cornerRecovery;
+  target*=Math.max(.24,recoveryTargetFactor);
+  if(car.cornerLock>0){
+    // During the core slide the engine cannot simply pull the car back to the
+    // originally drawn pace. It must first regain grip.
+    target=Math.min(target,32+42*(1-car.cornerLock/1280));
+  }
+
+  const response=1-Math.exp(-dt/(severeEntry>.12||car.cornerLock>0?260:120));
   car.speed+=(target-car.speed)*response;
-  if(severeEntry>0.55){
-    // The corner itself imposes a hard upper bound while grip is lost.
-    const emergencyCap=safeCornerSpeed*(1-.72*severeEntry);
-    car.speed=Math.min(car.speed,Math.max(8,emergencyCap));
+
+  if(severeEntry>0.35){
+    // Hard physical ceiling while grip is lost. The exponent makes the cap
+    // collapse toward zero for an almost-right-angle entry.
+    const emergencyCap=4+safeCornerSpeed*Math.pow(1-severeEntry,2.35);
+    car.speed=Math.min(car.speed,emergencyCap);
+  }
+  if(car.cornerLock>0){
+    car.speed=Math.min(car.speed,26+28*(1-car.cornerLock/1280));
   }
   car.speed=clamp(car.speed,0,1400*1.5);
 
@@ -612,10 +629,10 @@ function updateCar(dt){
   while(headingDelta>Math.PI)headingDelta-=Math.PI*2;
   while(headingDelta<-Math.PI)headingDelta+=Math.PI*2;
 
-  // In a slide the nose keeps its inertia instead of snapping to the line.
-  const steeringGrip=clamp(.98-.72*severeEntry,.18,.98);
-  car.a+=headingDelta*(1-Math.exp(-steeringGrip*dt/52));
+  const steeringGrip=clamp(.96-.78*severeEntry,.12,.96);
+  car.a+=headingDelta*(1-Math.exp(-steeringGrip*dt/58));
 
+  const u=progress-i;
   const idealX=p.x+(q.x-p.x)*u;
   const idealY=p.y+(q.y-p.y)*u;
   const normalX=-Math.sin(routeAngle);
@@ -624,24 +641,19 @@ function updateCar(dt){
   const outsideSign=-turnSign;
 
   let lateralVelocity=car.driftX*normalX+car.driftY*normalY;
-
-  // Slip is proportional to how badly the entry speed exceeds the corner's
-  // carrying speed. The car moves outward with genuine lateral velocity.
-  const maxDrift=W*.19;
-  const maxLateralVelocity=W*1.35;
+  const maxDrift=W*.20;
+  const maxLateralVelocity=W*1.65;
 
   if(turnSign!==0 && severeEntry>0){
-    const outwardAccel=(2600+5200*cornerSeverity)*Math.pow(severeEntry,1.18);
+    const outwardAccel=(3300+7600*cornerSeverity)*Math.pow(severeEntry,1.12);
     lateralVelocity+=outsideSign*outwardAccel*dt/1000;
   }
 
-  // Once speed falls back into the grip window, the tyres regain authority and
-  // the car naturally returns toward the exact drawn line.
   const displacementError=car.slip;
   const recoveryStrength=severeEntry>.05
-    ? 1.8+6.5*(1-severeEntry)
+    ? 1.35+5.2*(1-severeEntry)
     : 9.5;
-  const damping=2.4+3.5*severeEntry;
+  const damping=2.1+3.0*severeEntry;
   lateralVelocity+=(-displacementError*recoveryStrength-lateralVelocity*damping)*dt/1000;
   lateralVelocity=clamp(lateralVelocity,-maxLateralVelocity,maxLateralVelocity);
 
@@ -650,18 +662,42 @@ function updateCar(dt){
   car.driftX=normalX*lateralVelocity;
   car.driftY=normalY*lateralVelocity;
 
-  // Additional tyre scrub from lateral slip. This creates visible time loss
-  // without permanently breaking route following.
+  // Lateral slide is not free forward motion. A car that is mostly moving
+  // sideways should cover very little of the drawn route this frame. This is
+  // the missing time-cost in the earlier model and makes a badly attacked
+  // hairpin slower than a correctly braked one.
+  const slideRatio=clamp(Math.abs(lateralVelocity)/(W*.78),0,1);
+  let forwardFactor=1-.92*Math.pow(slideRatio,1.35);
+  if(severeEntry>.35){
+    forwardFactor*=Math.max(.08,1-.72*severeEntry);
+  }
+  if(car.cornerLock>0){
+    forwardFactor*=.18+0.42*(1-car.cornerLock/1280);
+  }
+
+  // Additional tyre scrub while the car is sliding.
   if(severeEntry>0){
-    const scrub=.10+.24*severeEntry;
+    const scrub=.16+.46*severeEntry;
     car.speed*=Math.exp(-scrub*dt/1000);
   }
 
-  // When the car has slowed sufficiently, snap nothing: simply let the
-  // physical recovery bring it back to the drawn line over time.
-  car.x=idealX+normalX*car.slip;
-  car.y=idealY+normalY*car.slip;
+  // Advance only with the post-physics, route-directed component of speed.
+  // This guarantees that a large sideways excursion cannot simultaneously
+  // produce a large amount of lap progress.
+  const effectiveForwardSpeed=Math.max(0,car.speed*forwardFactor);
+  const segment=Math.max(.25,dist(a,b));
+  progress+=(effectiveForwardSpeed*dt/1000)/segment;
+
+  const finalI=Math.min(Math.floor(progress),raceRoute.length-2);
+  const finalP=raceRoute[finalI],finalQ=raceRoute[finalI+1];
+  const finalU=progress-finalI;
+  const finalAngle=routeTangent(finalI);
+  car.x=finalP.x+(finalQ.x-finalP.x)*finalU-
+    Math.sin(finalAngle)*car.slip;
+  car.y=finalP.y+(finalQ.y-finalP.y)*finalU+
+    Math.cos(finalAngle)*car.slip;
 }
+
 function loop(now){
   if(!racing)return;
 
