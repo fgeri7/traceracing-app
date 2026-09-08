@@ -24,12 +24,12 @@ new ResizeObserver(resize).observe(stage);
 /* One closed, non-crossing circuit. The centerline winds around the whole play area;
    the green infield/outfield is visible between every part of the road. */
 const shape=[
- [.08,.80],[.08,.65],[.10,.51],[.08,.36],[.12,.22],[.23,.13],[.38,.11],
- [.53,.13],[.67,.11],[.82,.15],[.91,.25],[.92,.39],[.88,.49],[.78,.51],
- [.68,.48],[.61,.41],[.66,.33],[.78,.31],[.87,.34],[.92,.28],[.90,.18],
- [.81,.10],[.64,.09],[.52,.15],[.43,.10],[.28,.09],[.16,.15],[.10,.26],
- [.14,.38],[.21,.44],[.29,.41],[.35,.34],[.41,.39],[.43,.49],[.39,.59],
- [.31,.64],[.23,.61],[.17,.56],[.12,.61],[.11,.72],[.08,.80]
+ [.10,.78],[.10,.66],[.11,.53],[.09,.39],[.12,.25],[.21,.16],[.34,.12],
+ [.48,.11],[.63,.12],[.78,.13],[.88,.19],[.94,.29],[.96,.41],[.95,.55],
+ [.92,.68],[.86,.77],[.76,.82],[.62,.84],[.48,.84],[.34,.83],[.22,.81],
+ [.13,.79],[.09,.74],[.07,.68],[.08,.61],[.13,.56],[.21,.53],[.34,.52],
+ [.50,.52],[.65,.52],[.74,.50],[.78,.46],[.79,.41],[.77,.36],[.72,.33],
+ [.64,.31],[.50,.31],[.35,.31],[.23,.31],[.15,.34],[.10,.40]
 ];
 function catmull(ps,steps=7){
  const out=[];
@@ -48,7 +48,7 @@ function line(points,color,width,dash=[]){
  ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.restore();
 }
 function tangent(i){const a=track[Math.max(0,i-3)],b=track[Math.min(track.length-1,i+3)];return Math.atan2(b.y-a.y,b.x-a.x)}
-function sidePoint(i,side){const a=tangent(i),d=W*.073,p=track[i];return P(p.x-Math.sin(a)*d*side,p.y+Math.cos(a)*d*side)}
+function sidePoint(i,side){const a=tangent(i),d=W*.050,p=track[i];return P(p.x-Math.sin(a)*d*side,p.y+Math.cos(a)*d*side)}
 
 function terrain(){
  ctx.fillStyle="#5e7b53";ctx.fillRect(0,0,W,H);
@@ -69,7 +69,7 @@ function gate(i,finish){
  ctx.restore();ctx.save();ctx.fillStyle=finish?"#fff":"#20dc6b";ctx.font=`900 ${Math.max(10,W*.012)}px system-ui`;ctx.textAlign="center";ctx.fillText(finish?"CÉL":"START",p.x,p.y-W*.055);ctx.restore();
 }
 function arrows(){for(const i of[25,55,85,115,145,175,205,235]){if(i>=track.length-3)continue;const p=track[i],a=tangent(i);ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);ctx.globalAlpha=.45;ctx.fillStyle="#e1e5e6";ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-7,-7);ctx.lineTo(-3,0);ctx.lineTo(-7,7);ctx.closePath();ctx.fill();ctx.restore()}}
-function drawTrack(){line(track,"#192123",W*.166);line(track,"#c9c4b1",W*.145);line(track,"#3f4649",W*.119);line(track,"#606668",Math.max(2,W*.003));drawKerbs();arrows();gate(2,false);gate(track.length-3,true)}
+function drawTrack(){line(track,"#192123",W*.105);line(track,"#c9c4b1",W*.091);line(track,"#3f4649",W*.073);line(track,"#697073",Math.max(1.5,W*.0018),[W*.012,W*.012]);drawKerbs();arrows();gate(2,false);gate(track.length-3,true)}
 function drawPath(){if(path.length>1){line(path,"#d7a91e",Math.max(7,W*.008));line(path,"#fff06a",Math.max(2,W*.0027))}}
 function drawCar(){if(!racing&&!finished)return;ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.a);const s=Math.max(.75,Math.min(1.25,W/1050));ctx.scale(s,s);ctx.fillStyle="#0009";ctx.beginPath();ctx.ellipse(1,8,24,9,0,0,Math.PI*2);ctx.fill();ctx.fillStyle="#e10600";ctx.beginPath();ctx.roundRect(-20,-10,40,20,6);ctx.fill();ctx.fillStyle="#252a2e";ctx.beginPath();ctx.roundRect(-8,-8,16,16,4);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(12,-5,6,3);ctx.fillRect(12,2,6,3);ctx.fillStyle="#111";for(const q of[[-12,-12],[8,-12],[-12,7],[8,7]])ctx.fillRect(q[0],q[1],7,5);ctx.restore()}
 function draw(){terrain();drawTrees();drawTrack();drawPath();drawCar()}
@@ -95,45 +95,123 @@ function endDraw(e){
 canvas.addEventListener("pointerdown",startDraw,{passive:false});canvas.addEventListener("pointermove",moveDraw,{passive:false});
 canvas.addEventListener("pointerup",endDraw);canvas.addEventListener("pointercancel",endDraw);canvas.addEventListener("contextmenu",e=>e.preventDefault());
 
-function buildRace(){const out=[];for(let i=0;i<path.length-1;i++){const a=path[i],b=path[i+1],d=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(d/3)),sample=drawSamples[Math.min(i,drawSamples.length-1)],userSpeed=sample?.pxPerSec||220;for(let j=0;j<n;j++){const u=j/n;out.push({x:a.x+(b.x-a.x)*u,y:a.y+(b.y-a.y)*u,userSpeed})}}out.push({x:path.at(-1).x,y:path.at(-1).y,userSpeed:drawSamples.at(-1)?.pxPerSec||220});return out}
-function nearestTrackDistance(x,y){let best=Infinity;for(let i=0;i<track.length;i+=3)best=Math.min(best,Math.hypot(x-track[i].x,y-track[i].y));return best}
-function routeCurvature(i){const n=race.length,step=Math.max(3,Math.floor(n*.012)),a=race[Math.max(0,i-step)],b=race[i],c=race[Math.min(n-1,i+step)],ab=Math.atan2(b.y-a.y,b.x-a.x),bc=Math.atan2(c.y-b.y,c.x-b.x);let da=bc-ab;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;const d=Math.max(1,Math.hypot(c.x-a.x,c.y-a.y));return Math.abs(da)/(d/100)}
-function updateCar(){
- const idx=Math.min(Math.floor(progress),race.length-2),u=progress-idx,a=race[idx],b=race[idx+1],curv=routeCurvature(idx);
- let targetA=Math.atan2(b.y-a.y,b.x-a.x),safe=Math.max(.28,1.08-curv*.8),off=nearestTrackDistance(car.x,car.y),offFactor=off>W*.065?.45:1;
- const desired=Math.max(25,(a.userSpeed||220)*safe*offFactor),actual=car._speed+(desired-car._speed)*.075;car._speed=actual;
- progress+=(actual/Math.max(45,W*.05));
+function buildRace(){
+ const out=[];
+ for(let i=0;i<path.length-1;i++){
+  const a=path[i],b=path[i+1],d=Math.hypot(b.x-a.x,b.y-a.y);
+  const n=Math.max(1,Math.ceil(d/3));
+  const sample=drawSamples[Math.min(i,drawSamples.length-1)];
+  const userSpeed=Math.max(35,Math.min(900,sample?.pxPerSec||220));
+  for(let j=0;j<n;j++){const u=j/n;out.push({x:a.x+(b.x-a.x)*u,y:a.y+(b.y-a.y)*u,userSpeed})}
+ }
+ out.push({x:path.at(-1).x,y:path.at(-1).y,userSpeed:Math.max(35,Math.min(900,drawSamples.at(-1)?.pxPerSec||220))});
+ return out;
+}
+function routeCurvature(i){
+ const n=race.length,step=Math.max(5,Math.floor(n*.018));
+ const a=race[Math.max(0,i-step)],b=race[i],c=race[Math.min(n-1,i+step)];
+ const ab=Math.atan2(b.y-a.y,b.x-a.x),bc=Math.atan2(c.y-b.y,c.x-b.x);
+ let da=bc-ab;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+ const d=Math.max(1,Math.hypot(c.x-a.x,c.y-a.y));
+ return Math.abs(da)/(d/100);
+}
+function nearestTrackDistance(x,y){
+ let best=Infinity;
+ for(let i=0;i<track.length;i+=2)best=Math.min(best,Math.hypot(x-track[i].x,y-track[i].y));
+ return best;
+}
+function updateCar(dt){
+ const idx=Math.min(Math.floor(progress),race.length-2),u=progress-idx;
+ const a=race[idx],b=race[idx+1],curv=routeCurvature(idx);
+ const userSpeed=a.userSpeed||220;
+
+ // The car follows the drawing speed directly on straights.
+ // In a corner, speed is reduced only if the drawn speed is too high for the
+ // curvature. This makes fast corner entries visibly unstable.
+ const cornerThreshold=Math.max(90,260/(1+curv*2.2));
+ const excess=Math.max(0,userSpeed-cornerThreshold);
+ const cornerPenalty=Math.min(.72,excess/Math.max(1,userSpeed)*.85);
+ const off=nearestTrackDistance(car.x,car.y);
+ const offPenalty=off>W*.046?.55:1;
+ const targetSpeed=userSpeed*(1-cornerPenalty)*offPenalty;
+
+ // Responsive acceleration/deceleration so the car tracks the user's speed
+ // rather than drifting toward a single fixed animation speed.
+ const response=targetSpeed<car._speed?.16:.20;
+ car._speed += (targetSpeed-car._speed)*response;
+
+ // Convert physical canvas pixels/sec into progress along the player's route.
+ const segmentLength=Math.max(.1,Math.hypot(b.x-a.x,b.y-a.y));
+ progress += (car._speed*dt/1000)/segmentLength;
+
+ const targetA=Math.atan2(b.y-a.y,b.x-a.x);
  let da=targetA-car.a;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
- const grip=Math.max(.06,Math.min(.25,1-curv*.25));car.a+=da*grip;
- const idealX=a.x+(b.x-a.x)*u,idealY=a.y+(b.y-a.y)*u,sideX=-Math.sin(targetA),sideY=Math.cos(targetA);
- car.slip+=(curv*actual/170-car.slip)*.05;
- car.x=idealX+sideX*car.slip*W*.12;car.y=idealY+sideY*car.slip*W*.12;
- return {actual,off}
+
+ // Grip falls with curvature and with excessive corner-entry speed.
+ const grip=Math.max(.035,Math.min(.32,.30-curv*.035-cornerPenalty*.18));
+ car.a+=da*grip;
+
+ const idealX=a.x+(b.x-a.x)*u,idealY=a.y+(b.y-a.y)*u;
+ const sideX=-Math.sin(targetA),sideY=Math.cos(targetA);
+
+ // Slip is proportional to cornering stress. It decays on straights.
+ const slipTarget=cornerPenalty*1.25+Math.max(0,curv-.45)*.25;
+ car.slip+=(slipTarget-car.slip)*.12;
+ car.x=idealX+sideX*car.slip*W*.075;
+ car.y=idealY+sideY*car.slip*W*.075;
+ return {actual:car._speed,off,cornerPenalty};
 }
 function startRace(){
  if(racing||path.length<15||raceBtn.disabled)return;
- race=buildRace();if(race.length<2)return;progress=0;racing=true;finished=false;startTime=performance.now();lastTime=startTime;turbo=100;turboHeld=false;
- raceBtn.disabled=true;clearBtn.disabled=true;turboBtn.disabled=false;statusEl.textContent="VERSENY!";updateTurboUI();
- car={x:race[0].x,y:race[0].y,a:Math.atan2(race[1].y-race[0].y,race[1].x-race[0].x),_speed:race[0].userSpeed||220,slip:0};requestAnimationFrame(loop);
+ race=buildRace();if(race.length<2)return;
+ progress=0;racing=true;finished=false;startTime=performance.now();lastTime=startTime;
+ turbo=100;turboHeld=false;raceBtn.disabled=true;clearBtn.disabled=true;turboBtn.disabled=false;
+ statusEl.textContent="VERSENY!";updateTurboUI();
+ car={x:race[0].x,y:race[0].y,a:Math.atan2(race[1].y-race[0].y,race[1].x-race[0].x),
+      _speed:race[0].userSpeed||220,slip:0};
+ requestAnimationFrame(loop);
 }
 function loop(now){
- if(!racing)return;const dt=Math.min(50,now-lastTime);lastTime=now;if(turboHeld&&turbo>0)turbo=Math.max(0,turbo-dt*.055);
- const state=updateCar(),pct=Math.min(100,progress/(race.length-1)*100);speedEl.textContent=Math.round(state.actual*.62);distanceEl.textContent=Math.round(pct);timeEl.textContent=((now-startTime)/1000).toFixed(2);updateTurboUI();draw();
- if(progress>=race.length-1){finishRace();return}requestAnimationFrame(loop);
+ if(!racing)return;
+ const dt=Math.min(50,now-lastTime);lastTime=now;
+ if(turboHeld&&turbo>0){
+   turbo=Math.max(0,turbo-dt*.055);
+ }
+ const state=updateCar(dt);
+ const pct=Math.min(100,progress/(race.length-1)*100);
+ speedEl.textContent=Math.round(state.actual*.62);
+ distanceEl.textContent=Math.round(pct);
+ timeEl.textContent=((now-startTime)/1000).toFixed(2);
+ updateTurboUI();draw();
+ if(progress>=race.length-1){finishRace();return}
+ requestAnimationFrame(loop);
 }
-function updateTurboUI(){turboFill.style.width=`${turbo}%`;turboLabel.textContent=`${Math.round(turbo)}%`;if(turbo<=0)turboBtn.disabled=true}
-function finishRace(){progress=race.length-1;updateCar();racing=false;finished=true;turboHeld=false;turboBtn.disabled=true;clearBtn.disabled=false;speedEl.textContent="0";distanceEl.textContent="100";statusEl.textContent="CÉLBA ÉRTÉL 🏁";draw()}
-function reset(){drawing=false;racing=false;finished=false;turboHeld=false;path=[];race=[];progress=0;turbo=100;raceBtn.disabled=true;turboBtn.disabled=true;clearBtn.disabled=false;statusEl.textContent="Indulj a zöld START kapuból";speedEl.textContent="0";distanceEl.textContent="0";timeEl.textContent="0.00";pointsEl.textContent="0";tip.style.display="block";updateTurboUI();draw()}
+function updateTurboUI(){
+ turboFill.style.width=`${turbo}%`;turboLabel.textContent=`${Math.round(turbo)}%`;
+ if(turbo<=0)turboBtn.disabled=true;
+}
+function finishRace(){
+ progress=race.length-1;racing=false;finished=true;turboHeld=false;
+ turboBtn.disabled=true;clearBtn.disabled=false;speedEl.textContent="0";distanceEl.textContent="100";
+ statusEl.textContent="CÉLBA ÉRTÉL 🏁";draw();
+}
+function reset(){
+ drawing=false;racing=false;finished=false;turboHeld=false;path=[];race=[];progress=0;turbo=100;
+ raceBtn.disabled=true;turboBtn.disabled=true;clearBtn.disabled=false;
+ statusEl.textContent="Indulj a zöld START kapuból";speedEl.textContent="0";distanceEl.textContent="0";
+ timeEl.textContent="0.00";pointsEl.textContent="0";tip.style.display="block";updateTurboUI();draw();
+}
 
-/* Explicit handlers for both mouse/pointer and touch-capable Android WebView/PWA.
-   Buttons are outside the canvas, so drawing handlers can never swallow them. */
-function bindButton(button,fn){
- button.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();fn()});
- button.addEventListener("pointerup",e=>{e.stopPropagation()});
-}
-bindButton(raceBtn,startRace);bindButton(clearBtn,reset);
-turboBtn.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();if(racing&&turbo>0)turboHeld=true});
-turboBtn.addEventListener("pointerup",e=>{e.preventDefault();e.stopPropagation();turboHeld=false});
-turboBtn.addEventListener("pointercancel",()=>turboHeld=false);
+/* Turbo uses pointer events only while the touch is actually on the button. */
+turboBtn.addEventListener("pointerdown",e=>{
+ if(racing&&turbo>0){e.preventDefault();e.stopPropagation();turboHeld=true}
+});
+["pointerup","pointercancel","pointerleave"].forEach(type=>
+ turboBtn.addEventListener(type,e=>{turboHeld=false})
+);
+
+/* Explicit globals for the inline Android-safe button handlers. */
+window.startRace=startRace;
+window.reset=reset;
 
 resize();window.addEventListener("load",resize);
