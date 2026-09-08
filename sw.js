@@ -1,4 +1,4 @@
-const CACHE_NAME="trace-racing-v12";
+const CACHE_NAME="trace-racing-v13";
 const SHELL=[
  "./","./index.html","./style.css","./game.js","./manifest.json",
  "./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png",
@@ -16,7 +16,5 @@ self.addEventListener("activate",e=>{
 });
 self.addEventListener("fetch",e=>{
  if(e.request.method!=="GET")return;
- e.respondWith(
-  caches.match(e.request).then(cached=>cached||fetch(e.request))
- );
+ e.respondWith(caches.match(e.request).then(cached=>cached||fetch(e.request)));
 });
