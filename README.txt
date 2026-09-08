@@ -1,4 +1,4 @@
-Trace Racing v24
+Trace Racing v25
 
 Physics redesign:
 - The car now has an actual 2D velocity vector instead of moving by a route progress value.

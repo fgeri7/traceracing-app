@@ -619,68 +619,86 @@ function updateCar(dt){
   const routeAngle=routeTangent(idx);
   const corner=upcomingCorner(idx);
   const severity=corner.severity;
-  const dToCorner=corner.distance;
 
   let throttleTarget=Math.max(15,p.v);
   if(turboHeld&&turbo>0)throttleTarget*=1.5;
 
-  const forwardX=Math.cos(car.a), forwardY=Math.sin(car.a);
-  const routeX=Math.cos(routeAngle), routeY=Math.sin(routeAngle);
+  const forwardX=Math.cos(car.a),forwardY=Math.sin(car.a);
+  const routeX=Math.cos(routeAngle),routeY=Math.sin(routeAngle);
 
-  // Player-controlled throttle/braking from the drawing speed.
-  // Braking is strong enough that a deliberate slow-down before a bend is
-  // always useful; there is no artificial pre-braking based on the corner.
+  // The drawn speed is the driver's requested speed. It is never replaced by
+  // an automatic corner brake. A slow drawing therefore remains slow, while
+  // a fast drawing carries real momentum into the bend.
   const forwardSpeed=car.vx*forwardX+car.vy*forwardY;
-  const accel=900;
-  const brake=1500;
   const speedError=throttleTarget-forwardSpeed;
-  const longitudinalAccel=clamp(speedError>0 ? speedError*3.0 : speedError*4.2,-brake,accel);
-
+  const accel=900;
+  const brake=1700;
+  const longitudinalAccel=clamp(
+    speedError>=0 ? speedError*3.0 : speedError*4.2,
+    -brake,accel
+  );
   car.vx+=forwardX*longitudinalAccel*sec;
   car.vy+=forwardY*longitudinalAccel*sec;
 
-  // Steering: the nose follows the drawn line, but only with a finite yaw
-  // rate. This is intentionally NOT a teleport/spring to the line.
-  const headingError=signedAngleDiff(routeAngle,car.a);
-  const maxYawRate=2.65; // rad/s at low speed
-  const gripYawRate=clamp(1150/Math.max(90,Math.hypot(car.vx,car.vy)),0.55,maxYawRate);
-  const yawRate=clamp(headingError*5.0,-gripYawRate,gripYawRate);
-  car.a+=yawRate*sec;
-
-  // Tyre grip. The available lateral acceleration falls when the car is
-  // travelling too fast for the curvature of the drawn route. The important
-  // point is that grip acts on the actual velocity vector, not on progress.
-  const rawSpeed=Math.hypot(car.vx,car.vy);
-  const speed=rawSpeed;
-
-  // Approximate curvature requirement from the upcoming turn. A 90-degree
-  // bend has a very low practical speed limit; a gentle bend has a high one.
-  const safeSpeed=170+560*Math.pow(1-severity,1.75);
-  const overspeed=severity>0.02 ? clamp(speed/Math.max(90,safeSpeed)-1,0,3) : 0;
-
-  // Base tyre lateral grip, reduced during a genuinely over-speed entry.
-  // This produces the outward slide instead of an arbitrary positional offset.
-  const baseGrip=1180;
-  const gripLoss=severity*Math.pow(clamp(overspeed/1.15,0,1),1.25);
-  const lateralGrip=baseGrip*(1-.82*gripLoss);
-
+  // Calculate the car's current velocity before tyre forces are applied.
+  let rawSpeed=Math.hypot(car.vx,car.vy);
   const velocityAngle=Math.atan2(car.vy,car.vx);
   const velocityError=signedAngleDiff(routeAngle,velocityAngle);
+  const headingError=signedAngleDiff(routeAngle,car.a);
 
-  // Rotate velocity toward the route only as fast as real tyre acceleration
-  // permits. At high speed, a sharp direction change therefore leaves a large
-  // sideways component and the car slides outward.
-  const desiredLateralAccel=clamp(velocityError*speed*5.5,-lateralGrip,lateralGrip);
+  // Steering/yaw is deliberately speed dependent. At low speed the car can
+  // rotate quickly enough to follow the hand-drawn line. At high speed the
+  // same steering input is limited, so the velocity vector keeps carrying the
+  // car outward through an over-speed corner.
+  const maxYawRate=clamp(7.5-0.007*rawSpeed,2.7,7.5);
+  const yawRate=clamp(headingError*7.0,-maxYawRate,maxYawRate);
+  car.a+=yawRate*sec;
+
+  // A 90-degree corner has a low practical speed limit. Gentle curves have a
+  // much higher limit. This is used only to determine tyre grip loss; it does
+  // NOT directly brake the car before the corner.
+  const safeSpeed=170+560*Math.pow(1-severity,1.75);
+  const overspeed=severity>0.02
+    ? clamp(rawSpeed/Math.max(90,safeSpeed)-1,0,3)
+    : 0;
+  const gripLoss=severity*Math.pow(clamp(overspeed/1.15,0,1),1.25);
+
+  // At normal speed there is plenty of tyre grip. During a genuine over-speed
+  // entry it collapses progressively, producing a real velocity-vector slide.
+  const baseGrip=2400;
+  const lateralGrip=baseGrip*(1-.91*gripLoss);
   const lateralDirX=-Math.sin(velocityAngle);
   const lateralDirY=Math.cos(velocityAngle);
+
+  // Normal cornering force: rotate the actual velocity vector toward the
+  // drawn route, but never faster than the available tyre grip allows.
+  let desiredLateralAccel=velocityError*rawSpeed*12.0;
+  desiredLateralAccel=clamp(desiredLateralAccel,-lateralGrip,lateralGrip);
   car.vx+=lateralDirX*desiredLateralAccel*sec;
   car.vy+=lateralDirY*desiredLateralAccel*sec;
 
-  // A very sharp, high-speed turn also scrubs longitudinal energy. This is a
-  // consequence of the tyres sliding, not a hidden brake that fires simply
-  // because a corner exists. The slower the entry, the smaller the scrub.
+  // Strong low/medium-speed line assistance is essential for predictable
+  // DrawRace-style behaviour. It is NOT a magnetic pull toward the circuit:
+  // it acts only on the perpendicular distance to the player's exact line.
+  // During a severe slide it fades almost completely, allowing the car to
+  // leave the line naturally instead of being teleported back onto it.
+  const idealX=p.x+(q.x-p.x)*(progress-idx);
+  const idealY=p.y+(q.y-p.y)*(progress-idx);
+  const normalX=-Math.sin(routeAngle),normalY=Math.cos(routeAngle);
+  const lateralOffset=(car.x-idealX)*normalX+(car.y-idealY)*normalY;
+
+  const assistFactor=clamp(1-gripLoss*1.15,0,1);
+  const lineSpring=clamp(12.5-0.7*gripLoss,3.0,12.5);
+  const lineAccelMax=clamp(2600-1900*gripLoss,700,2600);
+  const lineCorrection=clamp(-lateralOffset*lineSpring,-lineAccelMax,lineAccelMax);
+  car.vx+=normalX*lineCorrection*assistFactor*sec;
+  car.vy+=normalY*lineCorrection*assistFactor*sec;
+
+  // When the tyres are saturated, friction converts the excess lateral slip
+  // into heat and speed loss. A hard 90-degree entry can therefore fall close
+  // to walking speed before grip returns.
   if(gripLoss>0){
-    const scrub=2600*gripLoss*gripLoss;
+    const scrub=2800*Math.pow(gripLoss,1.7);
     const s=Math.hypot(car.vx,car.vy);
     if(s>1){
       const factor=Math.max(0,1-scrub*sec/s);
@@ -689,64 +707,28 @@ function updateCar(dt){
     }
   }
 
-  // Surface friction: once the actual car leaves the asphalt, speed drops
-  // substantially. There is deliberately no force pulling the car through the
-  // grass toward the centre of the circuit.
+  // Grass has friction, but never a hidden force that pulls the car toward the
+  // middle of the oval.
   const offRoad=nearestTrackDistance({x:car.x,y:car.y})>W*.058;
   if(offRoad){
-    const s=Math.hypot(car.vx,car.vy);
     const factor=Math.exp(-4.2*sec);
     car.vx*=factor;
     car.vy*=factor;
   }
 
-  const newSpeed=Math.hypot(car.vx,car.vy);
-  car.speed=clamp(newSpeed,0,2100);
+  rawSpeed=Math.hypot(car.vx,car.vy);
+  car.speed=clamp(rawSpeed,0,2100);
 
-  // Progress is based ONLY on the component of actual velocity along the
-  // drawn route. Sideways motion cannot magically advance the lap.
-  const u=progress-idx;
-  const idealX=p.x+(q.x-p.x)*u;
-  const idealY=p.y+(q.y-p.y)*u;
-  const dx=car.x-idealX;
-  const dy=car.y-idealY;
-  const lateralOffset=dx*(-Math.sin(routeAngle))+dy*Math.cos(routeAngle);
-
-  // During normal driving, a small amount of path-centering is supplied by
-  // steering. During a slide this correction is intentionally weak. There is
-  // never a force that can drag the car all the way to the centre of the oval.
-  const lineGrip=clamp(1.0-Math.abs(lateralOffset)/(W*.13),0.08,1);
-  const correctionAccel=360*lineGrip;
-  const correction=clamp(-lateralOffset*2.2,-correctionAccel,correctionAccel);
-  const normalX=-Math.sin(routeAngle),normalY=Math.cos(routeAngle);
-  car.vx+=normalX*correction*sec;
-  car.vy+=normalY*correction*sec;
-
-  // Integrate actual position first.
-  car.x+=car.vx*sec;
-  car.y+=car.vy*sec;
-
-  // Re-project onto the route only for measuring progress; position itself is
-  // NEVER snapped to the route. This is what makes the slide spatially real.
-  const look=140;
-  const nextIdx=Math.min(raceRoute.length-2,Math.max(0,idx+Math.round(look/3)));
-  const rx0=raceRoute[Math.max(0,idx-25)];
-  const rx1=raceRoute[nextIdx];
-  const vxr=rx1.x-rx0.x, vyr=rx1.y-rx0.y;
-  const denom=Math.max(1,vxr*vxr+vyr*vyr);
-  const projected=((car.x-rx0.x)*vxr+(car.y-rx0.y)*vyr)/denom;
-  const projectedIdx=Math.max(0,Math.min(nextIdx,Math.floor((idx-25)+projected*(nextIdx-(idx-25)))));
-
-  // Simpler and stable progress integration: forward velocity component along
-  // the local route tangent. This avoids jumps caused by nearest-point search.
+  // Advance the lap ONLY by the actual velocity component along the drawn
+  // route. Sideways sliding therefore consumes time without giving equivalent
+  // lap progress.
   const forwardAlongRoute=car.vx*routeX+car.vy*routeY;
   const segment=Math.max(.25,dist(p,q));
-  const progressDelta=Math.max(-0.15,forwardAlongRoute*sec/segment);
-  progress+=progressDelta;
+  progress+=clamp(forwardAlongRoute*sec/segment,-0.15,0.15);
   progress=clamp(progress,0,raceRoute.length-1);
 
-  // Slip is now an actual geometric distance from the intended route. It is
-  // used only for the visual tyre marks; it is not a hidden steering force.
+  // Slip is purely a visual measurement of the car's distance from the exact
+  // player-drawn line. It does not create another force or attract the car.
   const finalI=Math.min(Math.floor(progress),raceRoute.length-2);
   const finalP=raceRoute[finalI],finalQ=raceRoute[finalI+1];
   const finalU=progress-finalI;
@@ -756,8 +738,11 @@ function updateCar(dt){
   car.slip=(car.x-ix)*(-Math.sin(finalAngle))+(car.y-iy)*Math.cos(finalAngle);
   car.driftX=car.vx;
   car.driftY=car.vy;
-}
 
+  // Actual position integration happens last, from the physical velocity.
+  car.x+=car.vx*sec;
+  car.y+=car.vy*sec;
+}
 function loop(now){
   if(!racing)return;
 
