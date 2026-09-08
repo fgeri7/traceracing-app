@@ -533,7 +533,7 @@ function updateCar(dt){
 
   // Leave the asphalt? The car follows the user's line, but off-track lines
   // lose speed noticeably.
-  const offRoad=nearestTrackDistance(P(car.x,car.y))>W*.058;
+  const offRoad=nearestTrackDistance({x:car.x,y:car.y})>W*.058;
   const offRoadMultiplier=offRoad?.48:1;
 
   target*=Math.max(.18,1-cornerStress*.62);
