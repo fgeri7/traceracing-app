@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-racing-v28";
+const CACHE_NAME = "trace-racing-v29";
 const SHELL = [
   "./",
   "./index.html",
