@@ -478,19 +478,33 @@ function routeTangent(i){
 }
 
 function routeTurn(i){
-  // Draw Race 2 does not use a generic curvature number for the drawn
-  // path's skid logic. PathPoint::calculateSkidValue() accumulates signed
-  // skid from angle + normalized drawing gas. Convert that result back to a
-  // stable 0..1 severity for the web physics.
+  // IMPORTANT: v28 resampled the path to ~3 px points and then measured
+  // curvature from adjacent samples. That made a real 90-degree corner look
+  // almost straight, so the overspeed model never activated.
+  //
+  // Draw Race 2 calculates its skid from the original touch points, not from
+  // an artificial 3 px resampling. For the web physics we therefore measure
+  // heading change over a real spatial window (about 26 px) instead. This
+  // preserves the smooth route representation while still seeing sharp bends.
   const p=raceRoute[Math.max(0,Math.min(raceRoute.length-1,i))];
+  const back=findRoutePointByDistance(i,-26);
+  const front=findRoutePointByDistance(i,26);
+  const ax=p.x-back.x, ay=p.y-back.y;
+  const bx=front.x-p.x, by=front.y-p.y;
+  const al=Math.hypot(ax,ay), bl=Math.hypot(bx,by);
+  if(al<.001 || bl<.001)return 0;
+
+  let dot=(ax*bx+ay*by)/(al*bl);
+  dot=clamp(dot,-1,1);
+  const cross=ax*by-ay*bx;
+  const angle=Math.acos(dot);
+  const signed=cross===0?0:(cross>0?angle:-angle);
+
+  // Keep a modest influence from the original DR2 skid state, but never let
+  // the skid value erase a geometrically real sharp corner.
   const skid=p?.skid||0;
-  const a=raceRoute[Math.max(0,i-2)];
-  const b=raceRoute[Math.min(raceRoute.length-1,i+2)];
-  const turn=Math.atan2(b.y-a.y,b.x-a.x)-routeTangent(i);
-  let t=turn;
-  while(t>Math.PI)t-=Math.PI*2;
-  while(t<-Math.PI)t+=Math.PI*2;
-  return t*(.35+.65*clamp(Math.abs(skid)/.95,0,1));
+  const skidFactor=.75+.25*clamp(Math.abs(skid)/.95,0,1);
+  return signed*skidFactor;
 }
 
 function findRoutePointByDistance(index,offset){
