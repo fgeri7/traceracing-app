@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Trace Racing · v29</title>
-<link rel="stylesheet" href="style.css?v=27">
-<link rel="manifest" href="manifest.json?v=27">
+<title>Trace Racing · v30</title>
+<link rel="stylesheet" href="style.css?v=20">
+<link rel="manifest" href="manifest.json?v=20">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="theme-color" content="#090c10">
@@ -43,7 +43,7 @@
   </aside>
 </div>
 </main>
-<script src="game.js?v=27"></script>
+<script src="game.js?v=20"></script>
 <script>
 // Trace Racing update helper: always check for a newer Service Worker when the app opens.
 if ("serviceWorker" in navigator) {
@@ -55,7 +55,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("./sw.js?v=27", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("./sw.js?v=20", { updateViaCache: "none" });
       await registration.update();
     } catch (err) {
       console.warn("Service worker update check failed:", err);

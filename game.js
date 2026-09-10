@@ -403,71 +403,29 @@ function buildRaceRoute(){
   const route=[];
   if(path.length<2)return route;
 
-  // Reverse-engineered from Draw Race 2:
-  // draw speed is normalized against a slowly moving maximum (99% old,
-  // 1% current), then stored as a 0..100 "gas" value. PathPoint smooths
-  // successive gas values with 40/60 weighting and clamps the change to 5.
-  let maxDrawSpeed=0;
-  let previousGas=0;
-
   for(let i=0;i<path.length-1;i++){
     const a=path[i],b=path[i+1];
     const d=dist(a,b);
     const n=Math.max(1,Math.ceil(d/3));
-    const v=clamp(samples[i]?.v||samples.at(-1)?.v||220,15,1400);
-
-    maxDrawSpeed=maxDrawSpeed*.99+v*.01;
-    const rawGas=maxDrawSpeed>0 ? clamp(v/maxDrawSpeed*100,0,100) : 0;
-
-    // Same smoothing behavior as Path::addPointToPath().
-    let gas=rawGas*.4+previousGas*.6;
-    gas=clamp(gas,previousGas-5,previousGas+5);
-    gas=clamp(gas,0,100);
-    gas=Math.round(gas);
-    previousGas=gas;
+    const v=samples[i]?.v||samples.at(-1)?.v||220;
 
     for(let j=0;j<n;j++){
       const u=j/n;
       route.push({
         x:a.x+(b.x-a.x)*u,
         y:a.y+(b.y-a.y)*u,
-        v,
-        gas,
-        skid:0
+        v:clamp(v,15,1400)
       });
     }
   }
 
   const last=path[path.length-1];
-  const lastV=clamp(samples.at(-1)?.v||220,15,1400);
-  maxDrawSpeed=maxDrawSpeed*.99+lastV*.01;
-  let lastGas=maxDrawSpeed>0 ? clamp(lastV/maxDrawSpeed*100,0,100) : previousGas;
-  lastGas=Math.round(clamp(lastGas*.4+previousGas*.6,previousGas-5,previousGas+5));
-  route.push({x:last.x,y:last.y,v:lastV,gas:clamp(lastGas,0,100),skid:0});
+  route.push({
+    x:last.x,
+    y:last.y,
+    v:clamp(samples.at(-1)?.v||220,15,1400)
+  });
 
-  // Exact Path::calculateSkidValue() model. The original compares the
-  // local turn angle (radians) with 25/gas; only an overspeed turn changes
-  // skid, and skid is accumulated and clamped to +/-0.95.
-  for(let i=1;i<route.length-1;i++){
-    const prev=route[i-1], cur=route[i], next=route[i+1];
-    const ax=cur.x-prev.x, ay=cur.y-prev.y;
-    const bx=next.x-cur.x, by=next.y-cur.y;
-    const al=Math.hypot(ax,ay), bl=Math.hypot(bx,by);
-    let skid=route[i-1].skid||0;
-
-    if(al>.0001 && bl>.0001 && cur.gas>0){
-      let dot=(ax*bx+ay*by)/(al*bl);
-      dot=clamp(dot,-1,1);
-      const angle=Math.acos(dot);
-      if(angle>25/cur.gas){
-        const cross=ax*by-ay*bx;
-        skid+=angle*(cross>0 ? .2 : -.2);
-      }
-    }
-
-    route[i].skid=clamp(skid,-.95,.95);
-  }
-  if(route.length>1)route[route.length-1].skid=route[route.length-2].skid||0;
   return route;
 }
 
@@ -478,33 +436,20 @@ function routeTangent(i){
 }
 
 function routeTurn(i){
-  // IMPORTANT: v28 resampled the path to ~3 px points and then measured
-  // curvature from adjacent samples. That made a real 90-degree corner look
-  // almost straight, so the overspeed model never activated.
-  //
-  // Draw Race 2 calculates its skid from the original touch points, not from
-  // an artificial 3 px resampling. For the web physics we therefore measure
-  // heading change over a real spatial window (about 26 px) instead. This
-  // preserves the smooth route representation while still seeing sharp bends.
-  const p=raceRoute[Math.max(0,Math.min(raceRoute.length-1,i))];
-  const back=findRoutePointByDistance(i,-26);
-  const front=findRoutePointByDistance(i,26);
-  const ax=p.x-back.x, ay=p.y-back.y;
-  const bx=front.x-p.x, by=front.y-p.y;
-  const al=Math.hypot(ax,ay), bl=Math.hypot(bx,by);
-  if(al<.001 || bl<.001)return 0;
+  const look=36;
+  const a=findRoutePointByDistance(i,-look);
+  const b=raceRoute[i];
+  const c=findRoutePointByDistance(i,look);
 
-  let dot=(ax*bx+ay*by)/(al*bl);
-  dot=clamp(dot,-1,1);
-  const cross=ax*by-ay*bx;
-  const angle=Math.acos(dot);
-  const signed=cross===0?0:(cross>0?angle:-angle);
+  const ab=Math.atan2(b.y-a.y,b.x-a.x);
+  const bc=Math.atan2(c.y-b.y,c.x-b.x);
+  let da=bc-ab;
 
-  // Keep a modest influence from the original DR2 skid state, but never let
-  // the skid value erase a geometrically real sharp corner.
-  const skid=p?.skid||0;
-  const skidFactor=.75+.25*clamp(Math.abs(skid)/.95,0,1);
-  return signed*skidFactor;
+  while(da>Math.PI)da-=Math.PI*2;
+  while(da<-Math.PI)da+=Math.PI*2;
+
+  const span=Math.max(12,dist(a,c));
+  return da/(span/100);
 }
 
 function findRoutePointByDistance(index,offset){
@@ -559,26 +504,22 @@ function startRace(){
   }
 
   raceRoute=buildRaceRoute();
+
   if(raceRoute.length<2){
     statusEl.textContent="Nem sikerült létrehozni a versenyvonalat — rajzold újra";
     return;
   }
 
-  const a=raceRoute[0], b=raceRoute[1];
-  const initialHeading=Math.atan2(b.y-a.y,b.x-a.x);
-  const initialSpeed=Math.max(15, a.v || 15);
+  const a=raceRoute[0],b=raceRoute[1];
 
   car={
     x:a.x,
     y:a.y,
-    a:initialHeading,
-    speed:initialSpeed,
-    vx:Math.cos(initialHeading)*initialSpeed,
-    vy:Math.sin(initialHeading)*initialSpeed,
-    gas:clamp((a.gas||50)/100,.3,1),
-    targetIndex:1,
-    lateralSpeed:0,
-    yawRate:0
+    a:Math.atan2(b.y-a.y,b.x-a.x),
+    speed:Math.max(15,a.v),
+    slip:0,
+    driftX:0,
+    driftY:0
   };
 
   progress=0;
@@ -593,186 +534,133 @@ function startRace(){
   clearBtn.disabled=true;
   turboBtn.disabled=false;
   statusEl.textContent="VERSENY!";
+
   updateTurboUI();
   draw();
   requestAnimationFrame(loop);
 }
 
-function angleDelta(a,b){
-  let d=b-a;
-  while(d>Math.PI)d-=Math.PI*2;
-  while(d<-Math.PI)d+=Math.PI*2;
-  return d;
-}
-
-function findNearestForwardPoint(){
-  const last=Math.min(raceRoute.length-1, Math.floor(progress)+99);
-  const first=Math.max(0, Math.floor(progress)-20);
-  let best=first, bd=Infinity;
-  for(let i=first;i<=last;i++){
-    const d=(car.x-raceRoute[i].x)**2+(car.y-raceRoute[i].y)**2;
-    if(d<bd){bd=d;best=i;}
-  }
-  return best;
-}
-
 function updateCar(dt){
   if(progress>=raceRoute.length-1)return;
 
-  const sec=dt/1000;
-  const currentIndex=Math.min(raceRoute.length-1,Math.floor(progress));
+  const idx=Math.min(Math.floor(progress),raceRoute.length-2);
+  const a=raceRoute[idx],b=raceRoute[idx+1];
 
-  // Reproduce the important DR2 control architecture: the car is NOT placed
-  // on the path. It chases a path point with finite steering and real velocity.
-  // Once it misses a point, the target remains behind it until the recovery
-  // logic catches up.
-  if(car.targetIndex<1)car.targetIndex=1;
-  const nearest=findNearestForwardPoint();
-  if(nearest>car.targetIndex)car.targetIndex=nearest;
+  // The player's drawing defines the intended pace. The physics may reduce
+  // that pace when the requested cornering speed is beyond the tyre grip.
+  let target=a.v;
+  if(turboHeld&&turbo>0)target*=1.5;
 
-  // The original PlayerResources uses the nearest line point's gas and then
-  // Car::slideGas(): 40% new value + 60% previous value. Path gas itself is
-  // clamped to at least 0.30 before it reaches the car.
-  const gasPoint=raceRoute[Math.min(car.targetIndex,raceRoute.length-1)];
-  let desiredGas=clamp((gasPoint.gas||50)/100,.3,1);
-  if(turboHeld&&turbo>0)desiredGas=Math.min(1.5,desiredGas*1.5);
-  car.gas += (desiredGas-car.gas)*(1-Math.exp(-sec/0.24));
+  const segment=Math.max(.25,dist(a,b));
+  progress+=(Math.max(0,car.speed)*dt/1000)/segment;
 
-  // DR2's target speed is approximately maxSpeed * (0.15 + 0.95*gas).
-  // Use the drawing speed as the dynamic maximum for this web prototype.
-  const localMax=clamp(Math.max(260, gasPoint.v||initialDrawSpeed()),260,1150);
-  let targetSpeed=localMax*(0.15+0.95*clamp(car.gas,0,1));
-  if(turboHeld&&turbo>0)targetSpeed*=1.22;
+  const i=Math.min(Math.floor(progress),raceRoute.length-2);
+  const p=raceRoute[i],q=raceRoute[i+1];
+  const u=progress-i;
+  const routeAngle=routeTangent(i);
+  const corner=routeCorner(i);
+  const turnAngle=Math.abs(corner.turn);
 
-  // Target point: do not use the point immediately under the car. A small
-  // look-ahead makes the steering smooth, while the finite steering angle
-  // prevents an impossible 90-degree turn at high speed.
-  const lookAhead=clamp(18+car.speed*.075,18,72);
-  const target=findPointAhead(car.targetIndex,lookAhead);
-  const desiredHeading=Math.atan2(target.y-car.y,target.x-car.x);
-  const headingError=angleDelta(car.a,desiredHeading);
+  // --- CORNER PHYSICS ---------------------------------------------------
+  // Instead of adding an arbitrary visual offset, calculate whether the
+  // requested speed is physically compatible with the actual angle of the
+  // player's drawn line. A near-90-degree corner therefore becomes a true
+  // low-grip event at racing speed.
+  //
+  // cornerSeverity: 0 = gentle bend, 1 = approximately 90 degrees.
+  const cornerSeverity=clamp(turnAngle/(Math.PI*.50),0,1);
+  const currentSpeed=Math.max(0,car.speed);
 
-  // Approximate the original car's steering: turnWheels() works from the
-  // target direction and current velocity, while the Bullet vehicle imposes
-  // a finite steering/yaw response. Steering authority falls at high speed.
-  const speedNorm=clamp(car.speed/Math.max(1,localMax),0,1.5);
-  const maxSteer=0.72;
-  const steer=clamp(headingError,-maxSteer,maxSteer);
-  const wheelBase=42;
-  const speedFactor=clamp(1.0-0.34*Math.max(0,speedNorm-0.55),.52,1);
-  const desiredYaw=(car.speed/Math.max(1,wheelBase))*Math.tan(steer)*speedFactor;
-  const yawResponse=1-Math.exp(-sec/(.075+0.10*clamp(speedNorm,0,1)));
-  car.yawRate += (desiredYaw-car.yawRate)*yawResponse;
+  // Safe speed falls very sharply as the drawn corner approaches 90 degrees.
+  // Values are in canvas pixels/sec. A 90-degree corner is intentionally
+  // almost a hairpin: entering it at full drawing speed forces heavy braking.
+  const safeCornerSpeed=150+520*Math.pow(1-cornerSeverity,1.65);
+  const speedRatio=cornerSeverity>0.08
+    ? currentSpeed/Math.max(80,safeCornerSpeed)
+    : 0;
 
-  // Lateral grip. This is the missing ingredient in the old versions: the
-  // velocity is allowed to point away from the car. A sharp, fast corner can
-  // therefore be entered too quickly and the car physically slides outward.
-  const forwardX=Math.cos(car.a), forwardY=Math.sin(car.a);
-  const rightX=-forwardY, rightY=forwardX;
-  const forwardVel=car.vx*forwardX+car.vy*forwardY;
-  const lateralVel=car.vx*rightX+car.vy*rightY;
-  const gripBase=690;
-  const grip=gripBase*clamp(1.05-.35*Math.max(0,speedNorm-0.7),.48,1.05);
-  const maxLatChange=grip*sec;
+  // The excess is nonlinear: slightly too fast is manageable, but entering
+  // a sharp corner far too fast causes a very strong loss of control.
+  const excess=clamp((speedRatio-1)/2.15,0,1);
+  const severeEntry=cornerSeverity*excess;
 
-  // The target line curvature determines how much lateral acceleration the
-  // requested speed would require. We do NOT brake merely because a corner
-  // exists; braking happens only when the car's current velocity is too large
-  // for the available lateral grip.
-  const ci=Math.min(raceRoute.length-2,car.targetIndex);
-  const cTurn=Math.abs(routeTurn(ci));
-  const radiusEstimate=cTurn>0.002 ? 52/cTurn : 1e9;
-  const requiredLat=(car.speed*car.speed)/Math.max(20,radiusEstimate);
-  const gripDemand=clamp(requiredLat/(grip*1.35),0,3);
-
-  // Smoothly bleed speed only when the physical cornering demand exceeds grip.
-  // This is intentionally thresholded so normal bends do not get artificial
-  // pre-braking.
-  let physicsBrake=0;
-  if(gripDemand>1){
-    physicsBrake=clamp((gripDemand-1)/1.8,0,1);
-    const brakeRate=2.2+8.0*physicsBrake;
-    car.speed*=Math.exp(-brakeRate*physicsBrake*sec);
-  }
-
-  // Motor response toward the path's gas-controlled target speed.
-  const accelRate=car.speed<targetSpeed ? 3.2 : 5.0;
-  car.speed += (targetSpeed-car.speed)*(1-Math.exp(-accelRate*sec));
-  car.speed=clamp(car.speed,0,1500);
-
-  // Integrate yaw first; the car's nose rotates, but its velocity does not
-  // magically rotate with it. That difference is the visible drift.
-  car.a += car.yawRate*sec;
-
-  const fx=Math.cos(car.a), fy=Math.sin(car.a);
-  const rx=-fy, ry=fx;
-  const fwd=Math.max(0,forwardVel);
-  let lat=lateralVel;
-  const desiredForward=car.speed;
-  fwd += (desiredForward-fwd)*(1-Math.exp(-7*sec));
-  const latSign=lat<0?-1:1;
-  const latAbs=Math.max(0,Math.abs(lat));
-  const latRetain=Math.exp(-(grip*0.00135)*sec*(1+0.45*physicsBrake));
-  lat*=latRetain;
-
-  car.vx=fx*fwd+rx*lat;
-  car.vy=fy*fwd+ry*lat;
-
-  // Integrate the actual position. No snapping to idealX/idealY.
-  car.x += car.vx*sec;
-  car.y += car.vy*sec;
-
-  // Progress is based on proximity to route points, like PlayerResources,
-  // rather than on the intended line parameter. If the car overshoots a sharp
-  // corner it can lose progress and must recover.
-  let newIndex=findNearestForwardPoint();
-  const distToTarget=dist(car,{x:gasPoint.x,y:gasPoint.y});
-  const closeRadius=clamp(8+car.speed*.045,10,42);
-  if(distToTarget<closeRadius){
-    car.targetIndex=Math.min(raceRoute.length-1,car.targetIndex+1);
-  }
-
-  // Convert target index into a continuous progress value.
-  const next=Math.min(raceRoute.length-1,car.targetIndex);
-  const prev=Math.max(0,next-1);
-  const pa=raceRoute[prev], pb=raceRoute[next];
-  const seg=Math.max(.001,dist(pa,pb));
-  const along=clamp(((car.x-pa.x)*(pb.x-pa.x)+(car.y-pa.y)*(pb.y-pa.y))/(seg*seg),0,1);
-  progress=Math.max(progress,prev+along);
-
-  // If we are badly outside the actual oval asphalt, apply the DR2-style
-  // terrain penalty rather than teleporting back onto the route.
+  // Asphalt/off-road drag remains a secondary effect.
   const offRoad=nearestTrackDistance({x:car.x,y:car.y})>W*.058;
-  if(offRoad){
-    car.speed*=Math.exp(-2.8*sec);
-    car.vx*=Math.exp(-2.0*sec);
-    car.vy*=Math.exp(-2.0*sec);
-  }
-}
+  if(offRoad)target*=.58;
 
-function findPointAhead(index,distanceAhead){
-  let i=Math.max(0,Math.min(raceRoute.length-1,index));
-  let remaining=distanceAhead;
-  while(remaining>0 && i<raceRoute.length-1){
-    const d=dist(raceRoute[i],raceRoute[i+1]);
-    if(d>=remaining){
-      const u=remaining/Math.max(.001,d);
-      return {
-        x:raceRoute[i].x+(raceRoute[i+1].x-raceRoute[i].x)*u,
-        y:raceRoute[i].y+(raceRoute[i+1].y-raceRoute[i].y)*u
-      };
-    }
-    remaining-=d;
-    i++;
+  // When the corner cannot be carried, rapidly bleed speed. This is the key
+  // Draw Race-style behavior: a very fast 90-degree entry can lose almost all
+  // of its speed before the car recovers.
+  if(severeEntry>0){
+    const brakeRate=7.5+8.5*cornerSeverity;
+    car.speed*=Math.exp(-brakeRate*severeEntry*dt/1000);
   }
-  return raceRoute[i];
-}
 
-function initialDrawSpeed(){
-  if(!raceRoute.length)return 300;
-  let sum=0,n=0;
-  for(let i=0;i<Math.min(raceRoute.length,20);i++){sum+=raceRoute[i].v||300;n++;}
-  return n?sum/n:300;
+  // Normal speed response. Never force the car back to the player's speed
+  // while it is in a severe slide; that would cancel the physics immediately.
+  const response=1-Math.exp(-dt/(severeEntry>.12?190:105));
+  car.speed+=(target-car.speed)*response;
+  if(severeEntry>0.55){
+    // The corner itself imposes a hard upper bound while grip is lost.
+    const emergencyCap=safeCornerSpeed*(1-.72*severeEntry);
+    car.speed=Math.min(car.speed,Math.max(8,emergencyCap));
+  }
+  car.speed=clamp(car.speed,0,1400*1.5);
+
+  // --- STEERING / YAW ---------------------------------------------------
+  let headingDelta=routeAngle-car.a;
+  while(headingDelta>Math.PI)headingDelta-=Math.PI*2;
+  while(headingDelta<-Math.PI)headingDelta+=Math.PI*2;
+
+  // In a slide the nose keeps its inertia instead of snapping to the line.
+  const steeringGrip=clamp(.98-.72*severeEntry,.18,.98);
+  car.a+=headingDelta*(1-Math.exp(-steeringGrip*dt/52));
+
+  const idealX=p.x+(q.x-p.x)*u;
+  const idealY=p.y+(q.y-p.y)*u;
+  const normalX=-Math.sin(routeAngle);
+  const normalY=Math.cos(routeAngle);
+  const turnSign=turnAngle<.00035?0:Math.sign(corner.turn);
+  const outsideSign=-turnSign;
+
+  let lateralVelocity=car.driftX*normalX+car.driftY*normalY;
+
+  // Slip is proportional to how badly the entry speed exceeds the corner's
+  // carrying speed. The car moves outward with genuine lateral velocity.
+  const maxDrift=W*.19;
+  const maxLateralVelocity=W*1.35;
+
+  if(turnSign!==0 && severeEntry>0){
+    const outwardAccel=(2600+5200*cornerSeverity)*Math.pow(severeEntry,1.18);
+    lateralVelocity+=outsideSign*outwardAccel*dt/1000;
+  }
+
+  // Once speed falls back into the grip window, the tyres regain authority and
+  // the car naturally returns toward the exact drawn line.
+  const displacementError=car.slip;
+  const recoveryStrength=severeEntry>.05
+    ? 1.8+6.5*(1-severeEntry)
+    : 9.5;
+  const damping=2.4+3.5*severeEntry;
+  lateralVelocity+=(-displacementError*recoveryStrength-lateralVelocity*damping)*dt/1000;
+  lateralVelocity=clamp(lateralVelocity,-maxLateralVelocity,maxLateralVelocity);
+
+  car.slip+=lateralVelocity*dt/1000;
+  car.slip=clamp(car.slip,-maxDrift,maxDrift);
+  car.driftX=normalX*lateralVelocity;
+  car.driftY=normalY*lateralVelocity;
+
+  // Additional tyre scrub from lateral slip. This creates visible time loss
+  // without permanently breaking route following.
+  if(severeEntry>0){
+    const scrub=.10+.24*severeEntry;
+    car.speed*=Math.exp(-scrub*dt/1000);
+  }
+
+  // When the car has slowed sufficiently, snap nothing: simply let the
+  // physical recovery bring it back to the drawn line over time.
+  car.x=idealX+normalX*car.slip;
+  car.y=idealY+normalY*car.slip;
 }
 function loop(now){
   if(!racing)return;

@@ -1,4 +1,4 @@
-Trace Racing v29
+Trace Racing v30
 
 This version keeps the stable drawn-line following from v16 and adds a speed-sensitive tyre/grip model.
 
